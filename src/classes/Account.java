@@ -71,10 +71,6 @@ public class Account {
         this.status = status;
     }
 
-    public Date getOpenDate() {
-        return openDate;
-    }
-
     public void setOpenDate(Date openDate) {
         this.openDate = openDate;
     }

@@ -15,17 +15,34 @@ public class DBConfig {
     private String password;
 
     private DBConfig() {
-        // Default JDBC MySQL Connection parameters
-        this.url = System.getProperty("db.url", "jdbc:mysql://localhost:3306/bank_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC");
-        this.username = System.getProperty("db.username", "root");
-        this.password = System.getProperty("db.password", "paswd");
+        // Connection parameters can be overridden (in order of precedence):
+        //   1. JVM system property:  -Ddb.password=secret
+        //   2. environment variable: DB_PASSWORD=secret
+        //   3. built-in default below
+        this.url = resolve("db.url", "DB_URL",
+                "jdbc:mysql://localhost:3306/bank_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC");
+        this.username = resolve("db.username", "DB_USER", "root");
+        this.password = resolve("db.password", "DB_PASSWORD", "paswd");
 
         try {
-            // Load MySQL JDBC Driver
-            Class.forName("com.mysql.cj.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            System.err.println("Warning: MySQL JDBC Driver not found on classpath. Ensure MySQL Connector/J dependency is included.");
+            // Load and register MySQL JDBC Driver explicitly
+            Class<?> driverClass = Class.forName("com.mysql.cj.jdbc.Driver");
+            java.sql.Driver driver = (java.sql.Driver) driverClass.getDeclaredConstructor().newInstance();
+            DriverManager.registerDriver(driver);
+        } catch (Exception e) {
+            System.err.println("Warning: MySQL JDBC Driver initialization: " + e.getMessage());
         }
+    }
+
+    private static String resolve(String systemProperty, String envVariable, String defaultValue) {
+        String value = System.getProperty(systemProperty);
+        if (value == null || value.isBlank()) {
+            value = System.getenv(envVariable);
+        }
+        if (value == null || value.isBlank()) {
+            value = defaultValue;
+        }
+        return value;
     }
 
     public static DBConfig getInstance() {
@@ -220,30 +237,5 @@ public class DBConfig {
             }
         }
         closeConnection(conn);
-    }
-
-    // Getters and Setters for DB Configuration
-    public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
     }
 }

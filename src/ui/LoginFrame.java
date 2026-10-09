@@ -175,7 +175,7 @@ public class LoginFrame extends JFrame {
             }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this,
-                    "Database Connection Error:\n" + ex.getMessage() + "\n\nPlease ensure MySQL is running and schema.sql has been executed.",
+                    "Database Connection Error:\n" + ex.getMessage() + "\n\nPlease ensure MySQL is running and the credentials in DBConfig are correct.",
                     "Database Connection Error",
                     JOptionPane.ERROR_MESSAGE);
         }

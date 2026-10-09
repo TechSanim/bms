@@ -143,6 +143,10 @@ public class DatabaseOperations {
                 return false;
             }
 
+            customer.setUserId(userId);
+            customer.setCustomerId(customerId);
+            account.setCustomerId(customerId);
+
             // 3. Insert into accounts
             accStmt = conn.prepareStatement(insertAccountSql);
             accStmt.setLong(1, account.getAccountNumber());
@@ -264,7 +268,7 @@ public class DatabaseOperations {
      * Deposits funds into an account and logs the transaction.
      */
     public boolean deposit(long accountNumber, double amount) throws SQLException {
-        if (amount <= 0) return false;
+        if (!Double.isFinite(amount) || amount <= 0) return false;
 
         var account = getAccountDetails(accountNumber);
         if (account == null || !"Active".equalsIgnoreCase(account.getStatus())) {
@@ -322,7 +326,7 @@ public class DatabaseOperations {
      * Withdraws funds from an account after verifying sufficient balance.
      */
     public boolean withdraw(long accountNumber, double amount) throws SQLException {
-        if (amount <= 0) return false;
+        if (!Double.isFinite(amount) || amount <= 0) return false;
 
         var account = getAccountDetails(accountNumber);
         if (account == null || !"Active".equalsIgnoreCase(account.getStatus()) || account.getBalance() < amount) {
@@ -381,7 +385,7 @@ public class DatabaseOperations {
      * Transfers funds atomically between source and target accounts with rollback handling.
      */
     public boolean transferFunds(long sourceAccount, long targetAccount, double amount) throws SQLException {
-        if (amount <= 0 || sourceAccount == targetAccount) return false;
+        if (!Double.isFinite(amount) || amount <= 0 || sourceAccount == targetAccount) return false;
 
         var src = getAccountDetails(sourceAccount);
         var tgt = getAccountDetails(targetAccount);

@@ -192,8 +192,8 @@ public class CustomerDashboard extends JFrame {
 
         try {
             double amount = Double.parseDouble(input.trim());
-            if (amount <= 0) {
-                JOptionPane.showMessageDialog(this, "Deposit amount must be greater than zero.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
+            if (!Double.isFinite(amount) || amount <= 0) {
+                JOptionPane.showMessageDialog(this, "Deposit amount must be a valid positive number.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
@@ -222,8 +222,8 @@ public class CustomerDashboard extends JFrame {
 
         try {
             double amount = Double.parseDouble(input.trim());
-            if (amount <= 0) {
-                JOptionPane.showMessageDialog(this, "Withdrawal amount must be greater than zero.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
+            if (!Double.isFinite(amount) || amount <= 0) {
+                JOptionPane.showMessageDialog(this, "Withdrawal amount must be a valid positive number.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
@@ -286,8 +286,8 @@ public class CustomerDashboard extends JFrame {
                 return;
             }
 
-            if (amount <= 0) {
-                JOptionPane.showMessageDialog(this, "Transfer amount must be greater than zero.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
+            if (!Double.isFinite(amount) || amount <= 0) {
+                JOptionPane.showMessageDialog(this, "Transfer amount must be a valid positive number.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 

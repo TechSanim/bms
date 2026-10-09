@@ -293,6 +293,26 @@ public class AdminDashboard extends JFrame {
             return;
         }
 
+        if (username.length() > 50) {
+            JOptionPane.showMessageDialog(this, "Username cannot exceed 50 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (name.length() > 100) {
+            JOptionPane.showMessageDialog(this, "Full Name cannot exceed 100 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (email.length() > 100) {
+            JOptionPane.showMessageDialog(this, "Email Address cannot exceed 100 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (!email.contains("@") || !email.contains(".")) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid email address.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         if (phone.length() > 20) {
             JOptionPane.showMessageDialog(this, "Phone number cannot exceed 20 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
             return;
@@ -307,8 +327,8 @@ public class AdminDashboard extends JFrame {
                 return;
             }
             initialDeposit = Double.parseDouble(depositStr);
-            if (initialDeposit < 0) {
-                JOptionPane.showMessageDialog(this, "Initial deposit cannot be negative.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            if (!Double.isFinite(initialDeposit) || initialDeposit < 0) {
+                JOptionPane.showMessageDialog(this, "Initial deposit must be a valid non-negative number.", "Validation Error", JOptionPane.WARNING_MESSAGE);
                 return;
             }
         } catch (NumberFormatException e) {
