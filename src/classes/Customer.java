@@ -1,4 +1,4 @@
-package model;
+package classes;
 
 public class Customer extends User {
     private int customerId;

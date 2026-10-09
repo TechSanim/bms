@@ -1,13 +1,16 @@
 package ui;
 
-import logic.BankManager;
-import model.Admin;
-import model.Customer;
-import model.User;
+import classes.Admin;
+import classes.Customer;
+import classes.User;
+import db.DatabaseOperations;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.sql.SQLException;
 
 public class LoginFrame extends JFrame {
 
@@ -17,7 +20,10 @@ public class LoginFrame extends JFrame {
     private JButton loginButton;
     private JButton exitButton;
 
+    private final DatabaseOperations dao;
+
     public LoginFrame() {
+        this.dao = new DatabaseOperations();
         initUI();
     }
 
@@ -120,7 +126,7 @@ public class LoginFrame extends JFrame {
         mainPanel.add(formPanel, BorderLayout.CENTER);
 
         // Footer Note
-        JLabel footerLabel = new JLabel("Demo: admin/admin123 | user/user123", SwingConstants.CENTER);
+        JLabel footerLabel = new JLabel("Default Demo: admin/admin123 | san/user123", SwingConstants.CENTER);
         footerLabel.setFont(new Font("Segoe UI", Font.ITALIC, 11));
         footerLabel.setForeground(Color.GRAY);
         footerLabel.setBorder(new EmptyBorder(0, 0, 10, 0));
@@ -129,7 +135,13 @@ public class LoginFrame extends JFrame {
         add(mainPanel);
 
         // Event Listeners
-        loginButton.addActionListener(e -> handleLogin());
+        loginButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                handleLogin();
+            }
+        });
+
         exitButton.addActionListener(e -> System.exit(0));
 
         // Press Enter to submit login
@@ -146,19 +158,26 @@ public class LoginFrame extends JFrame {
             return;
         }
 
-        User user = BankManager.getInstance().validateLogin(username, password, role);
+        try {
+            User user = dao.validateLogin(username, password, role);
 
-        if (user != null) {
-            JOptionPane.showMessageDialog(this, "Login Successful! Welcome, " + user.getUsername(), "Success", JOptionPane.INFORMATION_MESSAGE);
-            dispose();
+            if (user != null) {
+                JOptionPane.showMessageDialog(this, "Login Successful! Welcome, " + user.getUsername(), "Success", JOptionPane.INFORMATION_MESSAGE);
+                dispose();
 
-            if (user instanceof Admin) {
-                new AdminDashboard((Admin) user).setVisible(true);
-            } else if (user instanceof Customer) {
-                new CustomerDashboard((Customer) user).setVisible(true);
+                if (user instanceof Admin) {
+                    new AdminDashboard((Admin) user).setVisible(true);
+                } else if (user instanceof Customer) {
+                    new CustomerDashboard((Customer) user).setVisible(true);
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, "Invalid credentials or role mismatch. Please try again.", "Authentication Failed", JOptionPane.ERROR_MESSAGE);
             }
-        } else {
-            JOptionPane.showMessageDialog(this, "Invalid credentials or role mismatch. Please try again.", "Authentication Failed", JOptionPane.ERROR_MESSAGE);
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Database Connection Error:\n" + ex.getMessage() + "\n\nPlease ensure MySQL is running and schema.sql has been executed.",
+                    "Database Connection Error",
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 }

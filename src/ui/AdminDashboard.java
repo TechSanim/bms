@@ -1,19 +1,24 @@
 package ui;
 
-import logic.BankManager;
-import model.Admin;
-import model.CustomerAccountDTO;
+import classes.Account;
+import classes.Admin;
+import classes.Customer;
+import classes.CustomerAccountDTO;
+import classes.Transaction;
+import db.DatabaseOperations;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class AdminDashboard extends JFrame {
 
     private final Admin admin;
+    private final DatabaseOperations dao;
 
     // Components for Customer Registration Tab
     private JTextField usernameField;
@@ -26,14 +31,18 @@ public class AdminDashboard extends JFrame {
     private JTextField initialDepositField;
     private JComboBox<String> accountTypeCombo;
 
-    // Directory Table
+    // Tables
     private JTable customerTable;
     private DefaultTableModel customerTableModel;
+    private JTable auditTable;
+    private DefaultTableModel auditTableModel;
 
     public AdminDashboard(Admin admin) {
         this.admin = admin;
+        this.dao = new DatabaseOperations();
         initUI();
         loadCustomerData();
+        loadAuditData();
     }
 
     private void initUI() {
@@ -42,28 +51,28 @@ public class AdminDashboard extends JFrame {
         setSize(950, 650);
         setLocationRelativeTo(null);
 
-        JPanel mainPanel = new JPanel(new BorderLayout());
+        var mainPanel = new JPanel(new BorderLayout());
 
         // Header Panel
-        JPanel headerPanel = new JPanel(new BorderLayout());
+        var headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(new Color(26, 82, 118));
         headerPanel.setPreferredSize(new Dimension(950, 65));
         headerPanel.setBorder(new EmptyBorder(10, 20, 10, 20));
 
-        JLabel titleLabel = new JLabel("ADMIN DASHBOARD");
+        var titleLabel = new JLabel("ADMIN DASHBOARD");
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
         titleLabel.setForeground(Color.WHITE);
 
-        JLabel welcomeLabel = new JLabel("Logged in as: " + admin.getUsername() + " (Admin ID: " + admin.getUserId() + ")");
+        var welcomeLabel = new JLabel("Logged in as: " + admin.getUsername() + " (Admin ID: " + admin.getUserId() + ")");
         welcomeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         welcomeLabel.setForeground(new Color(212, 230, 241));
 
-        JPanel headerTextPanel = new JPanel(new GridLayout(2, 1));
+        var headerTextPanel = new JPanel(new GridLayout(2, 1));
         headerTextPanel.setOpaque(false);
         headerTextPanel.add(titleLabel);
         headerTextPanel.add(welcomeLabel);
 
-        JButton logoutButton = new JButton("Logout");
+        var logoutButton = new JButton("Logout");
         logoutButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
         logoutButton.setBackground(new Color(192, 57, 43));
         logoutButton.setForeground(Color.WHITE);
@@ -79,15 +88,19 @@ public class AdminDashboard extends JFrame {
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 
         // Tabbed Pane
-        JTabbedPane tabbedPane = new JTabbedPane();
+        var tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 13));
 
         tabbedPane.addTab("Register New Customer", createCustomerRegistrationPanel());
         tabbedPane.addTab("Customer Directory", createCustomerDirectoryPanel());
+        tabbedPane.addTab("System Audit Log", createAuditLogPanel());
 
         tabbedPane.addChangeListener(e -> {
-            if (tabbedPane.getSelectedIndex() == 1) {
+            int selectedIndex = tabbedPane.getSelectedIndex();
+            if (selectedIndex == 1) {
                 loadCustomerData();
+            } else if (selectedIndex == 2) {
+                loadAuditData();
             }
         });
 
@@ -96,17 +109,17 @@ public class AdminDashboard extends JFrame {
     }
 
     private JPanel createCustomerRegistrationPanel() {
-        JPanel panel = new JPanel(new BorderLayout());
+        var panel = new JPanel(new BorderLayout());
         panel.setBorder(new EmptyBorder(15, 30, 15, 30));
         panel.setBackground(new Color(245, 247, 250));
 
-        JPanel formPanel = new JPanel(new GridBagLayout());
+        var formPanel = new JPanel(new GridBagLayout());
         formPanel.setOpaque(false);
-        GridBagConstraints gbc = new GridBagConstraints();
+        var gbc = new GridBagConstraints();
         gbc.insets = new Insets(8, 12, 8, 12);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        Font fieldFont = new Font("Segoe UI", Font.PLAIN, 13);
+        var fieldFont = new Font("Segoe UI", Font.PLAIN, 13);
 
         // Row 0: Username & Password
         gbc.gridx = 0; gbc.gridy = 0;
@@ -175,14 +188,14 @@ public class AdminDashboard extends JFrame {
         addressArea = new JTextArea(3, 40);
         addressArea.setFont(fieldFont);
         addressArea.setLineWrap(true);
-        JScrollPane addressScroll = new JScrollPane(addressArea);
+        var addressScroll = new JScrollPane(addressArea);
         formPanel.add(addressScroll, gbc);
 
         // Row 5: Action Button
         gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 4;
         gbc.insets = new Insets(20, 12, 10, 12);
 
-        JButton registerButton = new JButton("Register Customer & Create Account");
+        var registerButton = new JButton("Register Customer & Create Account");
         registerButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
         registerButton.setBackground(new Color(40, 116, 166));
         registerButton.setForeground(Color.WHITE);
@@ -190,7 +203,7 @@ public class AdminDashboard extends JFrame {
         registerButton.setFocusPainted(false);
         registerButton.addActionListener(e -> handleRegisterCustomer());
 
-        JPanel btnWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        var btnWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
         btnWrapper.setOpaque(false);
         btnWrapper.add(registerButton);
 
@@ -201,7 +214,7 @@ public class AdminDashboard extends JFrame {
     }
 
     private JPanel createCustomerDirectoryPanel() {
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        var panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
         String[] columns = {"Cust ID", "User ID", "Name", "Email", "Phone", "Account #", "Type", "Balance ($)", "Status"};
@@ -218,30 +231,62 @@ public class AdminDashboard extends JFrame {
         customerTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         customerTable.getTableHeader().setBackground(new Color(230, 235, 240));
 
-        JScrollPane scrollPane = new JScrollPane(customerTable);
+        var scrollPane = new JScrollPane(customerTable);
         panel.add(scrollPane, BorderLayout.CENTER);
 
-        JButton refreshButton = new JButton("Refresh Directory");
+        var refreshButton = new JButton("Refresh Directory");
         refreshButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
         refreshButton.addActionListener(e -> loadCustomerData());
 
-        JPanel southPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        var southPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         southPanel.add(refreshButton);
         panel.add(southPanel, BorderLayout.SOUTH);
 
         return panel;
     }
 
+    private JPanel createAuditLogPanel() {
+        var panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(new EmptyBorder(15, 15, 15, 15));
+
+        String[] columns = {"Tx ID", "Account #", "Type", "Amount ($)", "Timestamp", "Description"};
+        auditTableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        auditTable = new JTable(auditTableModel);
+        auditTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        auditTable.setRowHeight(24);
+        auditTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        auditTable.getTableHeader().setBackground(new Color(230, 235, 240));
+
+        var scrollPane = new JScrollPane(auditTable);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        var refreshAuditButton = new JButton("Refresh Audit Ledger");
+        refreshAuditButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        refreshAuditButton.addActionListener(e -> loadAuditData());
+
+        var southPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        southPanel.add(refreshAuditButton);
+        panel.add(southPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
     private void handleRegisterCustomer() {
-        String username = usernameField.getText().trim();
-        String password = new String(passwordField.getPassword());
-        String name = nameField.getText().trim();
-        String email = emailField.getText().trim();
-        String phone = phoneField.getText().trim();
-        String address = addressArea.getText().trim();
-        String accNumStr = accountNumberField.getText().trim();
-        String depositStr = initialDepositField.getText().trim();
-        String accountType = (String) accountTypeCombo.getSelectedItem();
+        var username = usernameField.getText().trim();
+        var password = new String(passwordField.getPassword());
+        var name = nameField.getText().trim();
+        var email = emailField.getText().trim();
+        var phone = phoneField.getText().trim();
+        var address = addressArea.getText().trim();
+        var accNumStr = accountNumberField.getText().trim();
+        var depositStr = initialDepositField.getText().trim();
+        var accountType = (String) accountTypeCombo.getSelectedItem();
 
         if (username.isEmpty() || password.isEmpty() || name.isEmpty() || email.isEmpty() || phone.isEmpty() || accNumStr.isEmpty() || depositStr.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Please fill in all required fields (Username, Password, Name, Email, Phone, Account #, Deposit).", "Validation Error", JOptionPane.WARNING_MESSAGE);
@@ -271,34 +316,64 @@ public class AdminDashboard extends JFrame {
             return;
         }
 
-        var registered = BankManager.getInstance().registerCustomer(
-                username, password, name, email, phone, address, accountNumber, initialDeposit, accountType);
+        var customer = new Customer(username, password, name, email, phone, address);
+        var account = new Account(accountNumber, 0, initialDeposit, accountType);
 
-        if (registered != null) {
-            JOptionPane.showMessageDialog(this, "Customer and Account created successfully!\nAccount Number: " + accountNumber, "Success", JOptionPane.INFORMATION_MESSAGE);
-            clearRegistrationForm();
-            loadCustomerData();
-        } else {
-            JOptionPane.showMessageDialog(this, "Failed to register customer. Username or Account Number may already exist.", "Registration Failed", JOptionPane.ERROR_MESSAGE);
+        try {
+            boolean success = dao.createCustomerWithAccount(customer, account);
+            if (success) {
+                JOptionPane.showMessageDialog(this, "Customer and Account created successfully!\nAccount Number: " + accountNumber, "Success", JOptionPane.INFORMATION_MESSAGE);
+                clearRegistrationForm();
+                loadCustomerData();
+                loadAuditData();
+            } else {
+                JOptionPane.showMessageDialog(this, "Failed to register customer. Username or Account Number may already exist.", "Registration Failed", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void loadCustomerData() {
         customerTableModel.setRowCount(0);
-        List<CustomerAccountDTO> list = BankManager.getInstance().getAllCustomersWithAccounts();
-        for (CustomerAccountDTO dto : list) {
-            Object[] row = {
-                    dto.customerId(),
-                    dto.userId(),
-                    dto.name(),
-                    dto.email(),
-                    dto.phone(),
-                    dto.accountNumber() > 0 ? dto.accountNumber() : "N/A",
-                    dto.accountType() != null ? dto.accountType() : "N/A",
-                    dto.accountNumber() > 0 ? String.format("%.2f", dto.balance()) : "N/A",
-                    dto.status() != null ? dto.status() : "N/A"
-            };
-            customerTableModel.addRow(row);
+        try {
+            List<CustomerAccountDTO> list = dao.getAllCustomersWithAccounts();
+            for (CustomerAccountDTO dto : list) {
+                Object[] row = {
+                        dto.customerId(),
+                        dto.userId(),
+                        dto.name(),
+                        dto.email(),
+                        dto.phone(),
+                        dto.accountNumber() > 0 ? dto.accountNumber() : "N/A",
+                        dto.accountType() != null ? dto.accountType() : "N/A",
+                        dto.accountNumber() > 0 ? String.format("%.2f", dto.balance()) : "N/A",
+                        dto.status() != null ? dto.status() : "N/A"
+                };
+                customerTableModel.addRow(row);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error loading customers: " + e.getMessage());
+        }
+    }
+
+    private void loadAuditData() {
+        auditTableModel.setRowCount(0);
+        try {
+            List<Transaction> list = dao.getAllTransactions();
+            for (Transaction t : list) {
+                Object[] row = {
+                        t.getTransactionId(),
+                        t.getAccountNumber(),
+                        t.getType(),
+                        String.format("%.2f", t.getAmount()),
+                        t.getTimestamp(),
+                        t.getDescription()
+                };
+                auditTableModel.addRow(row);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error loading audit log: " + e.getMessage());
         }
     }
 

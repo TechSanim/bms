@@ -1,0 +1,83 @@
+-- =================================================================
+-- Bank Management System Database Schema Script (MySQL)
+-- =================================================================
+
+CREATE DATABASE IF NOT EXISTS bank_db;
+USE bank_db;
+
+-- Drop tables if they exist to allow clean re-execution
+DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS accounts;
+DROP TABLE IF EXISTS customers;
+DROP TABLE IF EXISTS users;
+
+-- 1. Users Table
+CREATE TABLE users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    CONSTRAINT chk_user_role CHECK (role IN ('Admin', 'Customer'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2. Customers Table
+CREATE TABLE customers (
+    customer_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    address TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 3. Accounts Table
+CREATE TABLE accounts (
+    account_number BIGINT PRIMARY KEY,
+    customer_id INT NOT NULL,
+    balance DOUBLE NOT NULL DEFAULT 0.0,
+    account_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Active',
+    open_date DATE NOT NULL,
+    CONSTRAINT chk_account_type CHECK (account_type IN ('Savings', 'Current')),
+    CONSTRAINT chk_account_status CHECK (status IN ('Active', 'Closed')),
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 4. Transactions Table
+CREATE TABLE transactions (
+    transaction_id INT AUTO_INCREMENT PRIMARY KEY,
+    account_number BIGINT NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    amount DOUBLE NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    description VARCHAR(255),
+    CONSTRAINT chk_trans_type CHECK (type IN ('DEPOSIT', 'WITHDRAWAL', 'TRANSFER')),
+    FOREIGN KEY (account_number) REFERENCES accounts(account_number) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =================================================================
+-- Seed Data Initialization
+-- =================================================================
+
+-- Seed Users
+-- Passwords in plain text for demo (can be hashed in production)
+INSERT INTO users (user_id, username, password, role) VALUES
+(1, 'admin', 'admin123', 'Admin'),
+(2, 'san', 'user123', 'Customer'),
+(3, 'jane_smith', 'user123', 'Customer');
+
+-- Seed Customers
+INSERT INTO customers (customer_id, user_id, name, email, phone, address) VALUES
+(101, 2, 'San', 'san@example.com', '+1-555-0192', '123 Main Street, New York, NY'),
+(102, 3, 'Jane Smith', 'jane.smith@example.com', '+1-555-0148', '456 Oak Avenue, Los Angeles, CA');
+
+-- Seed Accounts
+INSERT INTO accounts (account_number, customer_id, balance, account_type, status, open_date) VALUES
+(1000000001, 101, 5000.00, 'Savings', 'Active', '2025-01-15'),
+(1000000002, 102, 2500.50, 'Current', 'Active', '2025-02-01');
+
+-- Seed Transactions
+INSERT INTO transactions (account_number, type, amount, description) VALUES
+(1000000001, 'DEPOSIT', 5000.00, 'Initial Account Opening Deposit'),
+(1000000002, 'DEPOSIT', 2500.50, 'Initial Account Opening Deposit');
