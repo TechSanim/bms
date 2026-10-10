@@ -6,6 +6,7 @@ CREATE DATABASE IF NOT EXISTS bank_db;
 USE bank_db;
 
 -- Drop tables if they exist to allow clean re-execution
+DROP TABLE IF EXISTS customer_requests;
 DROP TABLE IF EXISTS admin_activity_log;
 DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS accounts;
@@ -67,6 +68,22 @@ CREATE TABLE admin_activity_log (
     action VARCHAR(20) NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 6. Customer Requests Table (account closure requests, feedback, complaints)
+CREATE TABLE customer_requests (
+    request_id INT AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT NOT NULL,
+    account_number BIGINT NULL,
+    type VARCHAR(30) NOT NULL,
+    subject VARCHAR(150),
+    message TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+    response TEXT,
+    handled_by VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- =================================================================

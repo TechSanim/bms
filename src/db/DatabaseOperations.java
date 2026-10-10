@@ -6,6 +6,7 @@ import classes.AdminActivityDTO;
 import classes.AdminDTO;
 import classes.Customer;
 import classes.CustomerAccountDTO;
+import classes.CustomerRequestDTO;
 import classes.HeadAdmin;
 import classes.Transaction;
 import classes.User;
@@ -899,6 +900,154 @@ public class DatabaseOperations {
             ps.setString(2, username);
             ps.setString(3, action);
             ps.executeUpdate();
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Customer requests (account closure, feedback, complaints)
+    // ------------------------------------------------------------------
+
+    private static final String REQUEST_BASE_SQL = """
+        SELECT r.request_id, r.customer_id, c.name AS customer_name, r.account_number,
+               r.type, r.subject, r.message, r.status, r.response, r.handled_by, r.created_at
+        FROM customer_requests r
+        JOIN customers c ON r.customer_id = c.customer_id
+        """;
+
+    /**
+     * Creates a customer request (account closure, feedback, complaint or query).
+     */
+    public boolean createCustomerRequest(int customerId, Long accountNumber, String type,
+                                         String subject, String message) throws SQLException {
+        var sql = """
+            INSERT INTO customer_requests (customer_id, account_number, type, subject, message)
+            VALUES (?, ?, ?, ?, ?)
+            """;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, customerId);
+            if (accountNumber == null) {
+                stmt.setNull(2, java.sql.Types.BIGINT);
+            } else {
+                stmt.setLong(2, accountNumber);
+            }
+            stmt.setString(3, type);
+            stmt.setString(4, subject);
+            stmt.setString(5, message);
+            return stmt.executeUpdate() > 0;
+        } finally {
+            if (stmt != null) try { stmt.close(); } catch (SQLException ignored) {}
+            DBConfig.closeConnection(conn);
+        }
+    }
+
+    /**
+     * Returns the requests submitted by a single customer, newest first.
+     */
+    public List<CustomerRequestDTO> getCustomerRequests(int customerId) throws SQLException {
+        return queryRequests(REQUEST_BASE_SQL + " WHERE r.customer_id = ? ORDER BY r.created_at DESC", customerId);
+    }
+
+    /**
+     * Returns every customer request (for the admin console), newest first.
+     */
+    public List<CustomerRequestDTO> getAllCustomerRequests() throws SQLException {
+        return queryRequests(REQUEST_BASE_SQL + " ORDER BY r.created_at DESC", null);
+    }
+
+    private List<CustomerRequestDTO> queryRequests(String sql, Integer customerId) throws SQLException {
+        var list = new ArrayList<CustomerRequestDTO>();
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql);
+            if (customerId != null) {
+                stmt.setInt(1, customerId);
+            }
+            rs = stmt.executeQuery();
+            while (rs.next()) {
+                long accountNumber = rs.getLong("account_number");
+                boolean accountWasNull = rs.wasNull();
+                list.add(new CustomerRequestDTO(
+                        rs.getInt("request_id"),
+                        rs.getInt("customer_id"),
+                        rs.getString("customer_name"),
+                        accountWasNull ? null : accountNumber,
+                        rs.getString("type"),
+                        rs.getString("subject"),
+                        rs.getString("message"),
+                        rs.getString("status"),
+                        rs.getString("response"),
+                        rs.getString("handled_by"),
+                        rs.getTimestamp("created_at")
+                ));
+            }
+        } finally {
+            DBConfig.closeResources(rs, stmt, conn);
+        }
+        return list;
+    }
+
+    /**
+     * Approves an account-closure request: marks the account Closed and the request Approved.
+     */
+    public boolean approveAccountClosure(int requestId, long accountNumber, String response, String handledBy) throws SQLException {
+        var closeSql = "UPDATE accounts SET status = 'Closed' WHERE account_number = ?";
+        var reqSql = "UPDATE customer_requests SET status = 'Approved', response = ?, handled_by = ? WHERE request_id = ?";
+        Connection conn = null;
+        PreparedStatement closeStmt = null;
+        PreparedStatement reqStmt = null;
+        try {
+            conn = dbConfig.getConnection();
+            conn.setAutoCommit(false);
+
+            closeStmt = conn.prepareStatement(closeSql);
+            closeStmt.setLong(1, accountNumber);
+            closeStmt.executeUpdate();
+
+            reqStmt = conn.prepareStatement(reqSql);
+            reqStmt.setString(1, response);
+            reqStmt.setString(2, handledBy);
+            reqStmt.setInt(3, requestId);
+            reqStmt.executeUpdate();
+
+            conn.commit();
+            return true;
+        } catch (SQLException e) {
+            if (conn != null) {
+                try { conn.rollback(); } catch (SQLException ex) { e.addSuppressed(ex); }
+            }
+            throw e;
+        } finally {
+            if (closeStmt != null) try { closeStmt.close(); } catch (SQLException ignored) {}
+            if (reqStmt != null) try { reqStmt.close(); } catch (SQLException ignored) {}
+            DBConfig.closeConnection(conn);
+        }
+    }
+
+    /**
+     * Updates a request's status with an optional admin response (reply / reject / resolve).
+     */
+    public boolean updateRequestStatus(int requestId, String status, String response, String handledBy) throws SQLException {
+        var sql = "UPDATE customer_requests SET status = ?, response = ?, handled_by = ? WHERE request_id = ?";
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, status);
+            stmt.setString(2, response);
+            stmt.setString(3, handledBy);
+            stmt.setInt(4, requestId);
+            return stmt.executeUpdate() > 0;
+        } finally {
+            if (stmt != null) try { stmt.close(); } catch (SQLException ignored) {}
+            DBConfig.closeConnection(conn);
         }
     }
 }

@@ -6,6 +6,7 @@ import classes.AdminActivityDTO;
 import classes.AdminDTO;
 import classes.Customer;
 import classes.CustomerAccountDTO;
+import classes.CustomerRequestDTO;
 import classes.HeadAdmin;
 import classes.Transaction;
 import db.DatabaseOperations;
@@ -54,6 +55,10 @@ public class AdminDashboard extends JFrame {
     private JTable adminActivityTable;
     private DefaultTableModel adminActivityTableModel;
 
+    // Customer Requests Tab
+    private JTable requestTable;
+    private DefaultTableModel requestTableModel;
+
     public AdminDashboard(Admin admin) {
         this.admin = admin;
         this.dao = new DatabaseOperations();
@@ -61,6 +66,7 @@ public class AdminDashboard extends JFrame {
         initUI();
         loadCustomerData();
         loadAuditData();
+        loadCustomerRequests();
         if (headAdmin) {
             loadAdminData();
             loadAdminActivityData();
@@ -120,6 +126,7 @@ public class AdminDashboard extends JFrame {
         tabbedPane.addTab("Register New Customer", createCustomerRegistrationPanel());
         tabbedPane.addTab("Customer Directory", createCustomerDirectoryPanel());
         tabbedPane.addTab("System Audit Log", createAuditLogPanel());
+        tabbedPane.addTab("Customer Requests", createCustomerRequestsPanel());
 
         tabbedPane.addChangeListener(e -> {
             String title = tabbedPane.getTitleAt(tabbedPane.getSelectedIndex());
@@ -128,6 +135,7 @@ public class AdminDashboard extends JFrame {
                 case "Admin Activity Log" -> loadAdminActivityData();
                 case "Customer Directory" -> loadCustomerData();
                 case "System Audit Log" -> loadAuditData();
+                case "Customer Requests" -> loadCustomerRequests();
                 default -> { }
             }
         });
@@ -740,6 +748,204 @@ public class AdminDashboard extends JFrame {
             }
         } catch (SQLException e) {
             System.err.println("Error loading admin activity: " + e.getMessage());
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Customer Requests
+    // ------------------------------------------------------------------
+
+    private JPanel createCustomerRequestsPanel() {
+        var panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(new EmptyBorder(15, 15, 15, 15));
+
+        String[] columns = {"Req ID", "Customer", "Acct #", "Type", "Subject", "Message", "Status", "Response", "Submitted"};
+        requestTableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        requestTable = new JTable(requestTableModel);
+        requestTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        requestTable.setRowHeight(24);
+        requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        requestTable.getTableHeader().setBackground(new Color(230, 235, 240));
+        requestTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        requestTable.getColumnModel().getColumn(5).setPreferredWidth(260);
+        requestTable.getColumnModel().getColumn(7).setPreferredWidth(200);
+
+        panel.add(new JScrollPane(requestTable), BorderLayout.CENTER);
+
+        var buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
+
+        var approveButton = new JButton("Approve & Close Account");
+        approveButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        approveButton.setBackground(new Color(146, 43, 33));
+        approveButton.setForeground(Color.WHITE);
+        approveButton.setFocusPainted(false);
+        approveButton.addActionListener(e -> approveSelectedClosure());
+
+        var replyButton = new JButton("Reply / Resolve");
+        replyButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        replyButton.addActionListener(e -> replySelectedRequest());
+
+        var rejectButton = new JButton("Reject");
+        rejectButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        rejectButton.addActionListener(e -> rejectSelectedRequest());
+
+        var refreshButton = new JButton("Refresh");
+        refreshButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        refreshButton.addActionListener(e -> loadCustomerRequests());
+
+        buttonPanel.add(approveButton);
+        buttonPanel.add(replyButton);
+        buttonPanel.add(rejectButton);
+        buttonPanel.add(refreshButton);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private void loadCustomerRequests() {
+        if (requestTableModel == null) return;
+        requestTableModel.setRowCount(0);
+        try {
+            for (CustomerRequestDTO r : dao.getAllCustomerRequests()) {
+                Object[] row = {
+                        r.requestId(),
+                        r.customerName(),
+                        r.accountNumber() != null ? r.accountNumber() : "—",
+                        r.type(),
+                        r.subject(),
+                        r.message(),
+                        r.status(),
+                        r.response() != null ? r.response() : "",
+                        r.createdAt()
+                };
+                requestTableModel.addRow(row);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error loading customer requests: " + e.getMessage());
+        }
+    }
+
+    private void approveSelectedClosure() {
+        int row = requestTable.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Please select a request first.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int requestId = (int) requestTableModel.getValueAt(row, 0);
+        String type = (String) requestTableModel.getValueAt(row, 3);
+        Object acctObj = requestTableModel.getValueAt(row, 2);
+        String status = (String) requestTableModel.getValueAt(row, 6);
+
+        if (!"Account Closure".equals(type)) {
+            JOptionPane.showMessageDialog(this, "Only 'Account Closure' requests can be approved here.", "Not a Closure Request", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (!(acctObj instanceof Long)) {
+            JOptionPane.showMessageDialog(this, "This request has no linked account.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (!"Pending".equals(status)) {
+            JOptionPane.showMessageDialog(this, "This request has already been " + status + ".", "Already Handled", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        long accountNumber = (Long) acctObj;
+
+        var responseField = new JTextField("Account closure approved.", 30);
+        var dialogPanel = new JPanel(new GridLayout(2, 1, 6, 6));
+        dialogPanel.add(new JLabel("Close account #" + accountNumber + "? Optional note to customer:"));
+        dialogPanel.add(responseField);
+
+        int confirm = JOptionPane.showConfirmDialog(this, dialogPanel,
+                "Approve Account Closure", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirm != JOptionPane.OK_OPTION) return;
+
+        String response = responseField.getText().trim();
+        if (response.isEmpty()) response = "Account closure approved.";
+
+        try {
+            if (dao.approveAccountClosure(requestId, accountNumber, response, admin.getUsername())) {
+                JOptionPane.showMessageDialog(this, "Account #" + accountNumber + " has been closed.", "Account Closed", JOptionPane.INFORMATION_MESSAGE);
+                loadCustomerRequests();
+            } else {
+                JOptionPane.showMessageDialog(this, "Could not close the account.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void replySelectedRequest() {
+        int row = requestTable.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Please select a request first.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int requestId = (int) requestTableModel.getValueAt(row, 0);
+        String type = (String) requestTableModel.getValueAt(row, 3);
+
+        if ("Account Closure".equals(type)) {
+            JOptionPane.showMessageDialog(this, "Use 'Approve & Close Account' or 'Reject' for closure requests.", "Invalid Action", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        JTextArea responseArea = new JTextArea(4, 30);
+        responseArea.setLineWrap(true);
+        responseArea.setWrapStyleWord(true);
+        int result = JOptionPane.showConfirmDialog(this, new JScrollPane(responseArea),
+                "Reply to customer:", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) return;
+
+        String response = responseArea.getText().trim();
+        if (response.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please write a reply.", "Empty Reply", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            if (dao.updateRequestStatus(requestId, "Resolved", response, admin.getUsername())) {
+                JOptionPane.showMessageDialog(this, "Reply sent.", "Resolved", JOptionPane.INFORMATION_MESSAGE);
+                loadCustomerRequests();
+            } else {
+                JOptionPane.showMessageDialog(this, "Could not update the request.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void rejectSelectedRequest() {
+        int row = requestTable.getSelectedRow();
+        if (row < 0) {
+            JOptionPane.showMessageDialog(this, "Please select a request first.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        int requestId = (int) requestTableModel.getValueAt(row, 0);
+        String status = (String) requestTableModel.getValueAt(row, 6);
+        if (!"Pending".equals(status)) {
+            JOptionPane.showMessageDialog(this, "This request has already been " + status + ".", "Already Handled", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        String reason = JOptionPane.showInputDialog(this, "Reason for rejecting this request:", "Reject Request", JOptionPane.PLAIN_MESSAGE);
+        if (reason == null) return;
+        reason = reason.trim();
+        if (reason.isEmpty()) reason = "Request rejected.";
+
+        try {
+            if (dao.updateRequestStatus(requestId, "Rejected", reason, admin.getUsername())) {
+                loadCustomerRequests();
+            } else {
+                JOptionPane.showMessageDialog(this, "Could not update the request.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 }

@@ -2,6 +2,7 @@ package ui;
 
 import classes.Account;
 import classes.Customer;
+import classes.CustomerRequestDTO;
 import classes.Transaction;
 import db.DatabaseOperations;
 
@@ -18,11 +19,20 @@ public class CustomerDashboard extends JFrame {
     private final DatabaseOperations dao;
     private Account customerAccount;
 
-    // GUI Components
+    // Account summary
     private JLabel balanceValueLabel;
     private JLabel accountInfoLabel;
+
+    // Transaction history
     private JTable transactionTable;
     private DefaultTableModel tableModel;
+
+    // Support & messages
+    private JComboBox<String> requestTypeCombo;
+    private JTextField subjectField;
+    private JTextArea messageArea;
+    private JTable requestTable;
+    private DefaultTableModel requestTableModel;
 
     public CustomerDashboard(Customer customer) {
         this.customer = customer;
@@ -30,6 +40,7 @@ public class CustomerDashboard extends JFrame {
         loadCustomerAccount();
         initUI();
         loadTransactionHistory();
+        loadMyRequests();
     }
 
     private void loadCustomerAccount() {
@@ -43,7 +54,7 @@ public class CustomerDashboard extends JFrame {
     private void initUI() {
         setTitle("Bank Management System - Customer Portal");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(900, 600);
+        setSize(940, 640);
         setLocationRelativeTo(null);
 
         JPanel mainPanel = new JPanel(new BorderLayout());
@@ -51,7 +62,7 @@ public class CustomerDashboard extends JFrame {
         // Header Panel
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(new Color(21, 67, 96));
-        headerPanel.setPreferredSize(new Dimension(900, 65));
+        headerPanel.setPreferredSize(new Dimension(940, 65));
         headerPanel.setBorder(new EmptyBorder(10, 20, 10, 20));
 
         JLabel titleLabel = new JLabel("CUSTOMER BANKING PORTAL");
@@ -81,12 +92,30 @@ public class CustomerDashboard extends JFrame {
         headerPanel.add(logoutButton, BorderLayout.EAST);
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 
-        // Center Container
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        tabbedPane.addTab("My Account", createAccountPanel());
+        tabbedPane.addTab("Support & Messages", createSupportPanel());
+        tabbedPane.addChangeListener(e -> {
+            if (tabbedPane.getSelectedIndex() == 1) {
+                loadMyRequests();
+            }
+        });
+
+        mainPanel.add(tabbedPane, BorderLayout.CENTER);
+        add(mainPanel);
+    }
+
+    // ------------------------------------------------------------------
+    // My Account
+    // ------------------------------------------------------------------
+
+    private JPanel createAccountPanel() {
         JPanel centerPanel = new JPanel(new BorderLayout(15, 15));
         centerPanel.setBorder(new EmptyBorder(15, 20, 15, 20));
         centerPanel.setBackground(new Color(245, 247, 250));
 
-        // 1. Account Summary Banner Card
+        // Account Summary Banner Card
         JPanel summaryCard = new JPanel(new BorderLayout());
         summaryCard.setBackground(new Color(40, 116, 166));
         summaryCard.setBorder(new EmptyBorder(15, 25, 15, 25));
@@ -118,23 +147,26 @@ public class CustomerDashboard extends JFrame {
 
         centerPanel.add(summaryCard, BorderLayout.NORTH);
 
-        // 2. Action Controls Panel (Deposit, Withdraw, Transfer)
-        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+        // Action Controls Panel
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
         actionPanel.setOpaque(false);
 
         JButton depositBtn = createActionButton("Deposit Funds", new Color(39, 174, 96));
         JButton withdrawBtn = createActionButton("Withdraw Cash", new Color(211, 84, 0));
         JButton transferBtn = createActionButton("Transfer Funds", new Color(41, 128, 185));
+        JButton closeBtn = createActionButton("Request Account Closure", new Color(146, 43, 33));
 
         depositBtn.addActionListener(e -> handleDeposit());
         withdrawBtn.addActionListener(e -> handleWithdraw());
         transferBtn.addActionListener(e -> handleTransfer());
+        closeBtn.addActionListener(e -> handleRequestClosure());
 
         actionPanel.add(depositBtn);
         actionPanel.add(withdrawBtn);
         actionPanel.add(transferBtn);
+        actionPanel.add(closeBtn);
 
-        // 3. Transaction History Table
+        // Transaction History Table
         JPanel tablePanel = new JPanel(new BorderLayout(5, 5));
         tablePanel.setOpaque(false);
 
@@ -166,26 +198,21 @@ public class CustomerDashboard extends JFrame {
         middleWrapper.add(tablePanel, BorderLayout.CENTER);
 
         centerPanel.add(middleWrapper, BorderLayout.CENTER);
-
-        mainPanel.add(centerPanel, BorderLayout.CENTER);
-        add(mainPanel);
+        return centerPanel;
     }
 
     private JButton createActionButton(String text, Color bg) {
         JButton btn = new JButton(text);
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
         btn.setBackground(bg);
         btn.setForeground(Color.WHITE);
-        btn.setPreferredSize(new Dimension(170, 42));
+        btn.setPreferredSize(new Dimension(190, 42));
         btn.setFocusPainted(false);
         return btn;
     }
 
     private void handleDeposit() {
-        if (customerAccount == null) {
-            JOptionPane.showMessageDialog(this, "No active account found for deposit.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+        if (!ensureActiveAccount("deposit")) return;
 
         String input = JOptionPane.showInputDialog(this, "Enter amount to deposit ($):", "Deposit Funds", JOptionPane.PLAIN_MESSAGE);
         if (input == null || input.trim().isEmpty()) return;
@@ -212,10 +239,7 @@ public class CustomerDashboard extends JFrame {
     }
 
     private void handleWithdraw() {
-        if (customerAccount == null) {
-            JOptionPane.showMessageDialog(this, "No active account found for withdrawal.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+        if (!ensureActiveAccount("withdrawal")) return;
 
         String input = JOptionPane.showInputDialog(this, "Enter amount to withdraw ($):", "Withdraw Cash", JOptionPane.PLAIN_MESSAGE);
         if (input == null || input.trim().isEmpty()) return;
@@ -247,10 +271,7 @@ public class CustomerDashboard extends JFrame {
     }
 
     private void handleTransfer() {
-        if (customerAccount == null) {
-            JOptionPane.showMessageDialog(this, "No active account found for transfer.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+        if (!ensureActiveAccount("transfer")) return;
 
         JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
         JTextField targetAccField = new JTextField();
@@ -310,6 +331,225 @@ public class CustomerDashboard extends JFrame {
         }
     }
 
+    private boolean ensureActiveAccount(String action) {
+        loadCustomerAccount();
+        if (customerAccount == null) {
+            JOptionPane.showMessageDialog(this, "No account found for " + action + ".", "Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+        if (!"Active".equalsIgnoreCase(customerAccount.getStatus())) {
+            JOptionPane.showMessageDialog(this, "This account is " + customerAccount.getStatus() + " and cannot be used for " + action + ".", "Account Not Active", JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+        return true;
+    }
+
+    // ------------------------------------------------------------------
+    // Account closure request
+    // ------------------------------------------------------------------
+
+    private void handleRequestClosure() {
+        loadCustomerAccount();
+        if (customerAccount == null) {
+            JOptionPane.showMessageDialog(this, "No account found to close.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (!"Active".equalsIgnoreCase(customerAccount.getStatus())) {
+            JOptionPane.showMessageDialog(this, "This account is already " + customerAccount.getStatus() + ".", "Account Not Active", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        double balance = customerAccount.getBalance();
+        if (balance != 0.0) {
+            JOptionPane.showMessageDialog(this,
+                    String.format("Your account still holds a balance of $%,.2f.%n%nPlease withdraw the full balance before closing your account.", balance),
+                    "Cannot Close Account", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        JTextArea reasonArea = new JTextArea(4, 30);
+        reasonArea.setLineWrap(true);
+        reasonArea.setWrapStyleWord(true);
+        int reasonResult = JOptionPane.showConfirmDialog(this, new JScrollPane(reasonArea),
+                "Please provide a reason for closing your account",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (reasonResult != JOptionPane.OK_OPTION) return;
+
+        String reason = reasonArea.getText().trim();
+        if (reason.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "A reason is required to close your account.", "Reason Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Send this account closure request to the bank admin for approval?",
+                "Confirm Closure Request", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        try {
+            boolean ok = dao.createCustomerRequest(customer.getCustomerId(), customerAccount.getAccountNumber(),
+                    "Account Closure", "Account Closure Request", reason);
+            if (ok) {
+                JOptionPane.showMessageDialog(this,
+                        "Your account closure request has been submitted to the bank admin for approval.",
+                        "Request Sent", JOptionPane.INFORMATION_MESSAGE);
+                loadMyRequests();
+            } else {
+                JOptionPane.showMessageDialog(this, "Could not submit the closure request.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Database Error: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Support & Messages
+    // ------------------------------------------------------------------
+
+    private JPanel createSupportPanel() {
+        JPanel panel = new JPanel(new BorderLayout(15, 15));
+        panel.setBorder(new EmptyBorder(15, 20, 15, 20));
+        panel.setBackground(new Color(245, 247, 250));
+
+        // Feedback form
+        JPanel formPanel = new JPanel(new BorderLayout(8, 8));
+        formPanel.setBackground(Color.WHITE);
+        formPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createTitledBorder("Send a message to the bank"),
+                new EmptyBorder(8, 12, 8, 12)));
+
+        JPanel topRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        topRow.setOpaque(false);
+        topRow.add(new JLabel("Type:"));
+        requestTypeCombo = new JComboBox<>(new String[]{"Feedback", "Complaint", "Query"});
+        requestTypeCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        topRow.add(requestTypeCombo);
+        topRow.add(new JLabel("Subject:"));
+        subjectField = new JTextField(28);
+        subjectField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        topRow.add(subjectField);
+
+        messageArea = new JTextArea(4, 50);
+        messageArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        messageArea.setLineWrap(true);
+        messageArea.setWrapStyleWord(true);
+        JScrollPane messageScroll = new JScrollPane(messageArea);
+
+        JButton sendButton = new JButton("Send Message");
+        sendButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        sendButton.setBackground(new Color(40, 116, 166));
+        sendButton.setForeground(Color.WHITE);
+        sendButton.setFocusPainted(false);
+        sendButton.addActionListener(e -> handleSendFeedback());
+
+        JButton clearButton = new JButton("Clear");
+        clearButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        clearButton.addActionListener(e -> {
+            subjectField.setText("");
+            messageArea.setText("");
+            requestTypeCombo.setSelectedIndex(0);
+        });
+
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
+        buttonRow.setOpaque(false);
+        buttonRow.add(sendButton);
+        buttonRow.add(clearButton);
+
+        formPanel.add(topRow, BorderLayout.NORTH);
+        formPanel.add(messageScroll, BorderLayout.CENTER);
+        formPanel.add(buttonRow, BorderLayout.SOUTH);
+
+        // My requests table
+        JPanel tablePanel = new JPanel(new BorderLayout(5, 5));
+        tablePanel.setOpaque(false);
+
+        JLabel tableTitle = new JLabel("My Requests & Replies");
+        tableTitle.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        tableTitle.setBorder(new EmptyBorder(5, 0, 5, 0));
+
+        String[] columns = {"Req ID", "Type", "Subject", "Status", "Admin Response", "Submitted"};
+        requestTableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        requestTable = new JTable(requestTableModel);
+        requestTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        requestTable.setRowHeight(24);
+        requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
+        requestTable.getTableHeader().setBackground(new Color(230, 235, 240));
+
+        tablePanel.add(tableTitle, BorderLayout.NORTH);
+        tablePanel.add(new JScrollPane(requestTable), BorderLayout.CENTER);
+
+        JButton refreshButton = new JButton("Refresh");
+        refreshButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        refreshButton.addActionListener(e -> loadMyRequests());
+        JPanel refreshRow = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        refreshRow.setOpaque(false);
+        refreshRow.add(refreshButton);
+        tablePanel.add(refreshRow, BorderLayout.SOUTH);
+
+        panel.add(formPanel, BorderLayout.NORTH);
+        panel.add(tablePanel, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private void handleSendFeedback() {
+        String type = (String) requestTypeCombo.getSelectedItem();
+        String subject = subjectField.getText().trim();
+        String message = messageArea.getText().trim();
+
+        if (message.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please write a message before sending.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (subject.isEmpty()) {
+            subject = type;
+        }
+        if (subject.length() > 150) {
+            JOptionPane.showMessageDialog(this, "Subject cannot exceed 150 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        try {
+            boolean ok = dao.createCustomerRequest(customer.getCustomerId(), null, type, subject, message);
+            if (ok) {
+                JOptionPane.showMessageDialog(this, "Your message has been sent to the bank. You will see the reply here.", "Message Sent", JOptionPane.INFORMATION_MESSAGE);
+                subjectField.setText("");
+                messageArea.setText("");
+                requestTypeCombo.setSelectedIndex(0);
+                loadMyRequests();
+            } else {
+                JOptionPane.showMessageDialog(this, "Could not send your message.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Database Error: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void loadMyRequests() {
+        if (requestTableModel == null) return;
+        requestTableModel.setRowCount(0);
+        try {
+            List<CustomerRequestDTO> list = dao.getCustomerRequests(customer.getCustomerId());
+            for (CustomerRequestDTO r : list) {
+                Object[] row = {
+                        r.requestId(),
+                        r.type(),
+                        r.subject(),
+                        r.status(),
+                        r.response() != null ? r.response() : "",
+                        r.createdAt()
+                };
+                requestTableModel.addRow(row);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error loading requests: " + e.getMessage());
+        }
+    }
+
     private void refreshAccountState() {
         loadCustomerAccount();
         if (customerAccount != null) {
@@ -323,6 +563,7 @@ public class CustomerDashboard extends JFrame {
     }
 
     private void loadTransactionHistory() {
+        if (tableModel == null) return;
         tableModel.setRowCount(0);
         if (customerAccount == null) return;
 

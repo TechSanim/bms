@@ -235,6 +235,24 @@ public class DBConfig {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """);
 
+        // 6. Customer Requests Table (account closure requests, feedback, complaints)
+        stmt.executeUpdate("""
+            CREATE TABLE IF NOT EXISTS customer_requests (
+                request_id INT AUTO_INCREMENT PRIMARY KEY,
+                customer_id INT NOT NULL,
+                account_number BIGINT NULL,
+                type VARCHAR(30) NOT NULL,
+                subject VARCHAR(150),
+                message TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+                response TEXT,
+                handled_by VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+
         // Seed initial admin and customer data if users table is empty
         try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users")) {
             if (rs.next() && rs.getInt(1) == 0) {
