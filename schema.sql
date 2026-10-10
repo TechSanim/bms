@@ -6,6 +6,7 @@ CREATE DATABASE IF NOT EXISTS bank_db;
 USE bank_db;
 
 -- Drop tables if they exist to allow clean re-execution
+DROP TABLE IF EXISTS admin_activity_log;
 DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS accounts;
 DROP TABLE IF EXISTS customers;
@@ -17,7 +18,9 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL,
-    CONSTRAINT chk_user_role CHECK (role IN ('Admin', 'Customer'))
+    is_online TINYINT(1) NOT NULL DEFAULT 0,
+    last_login DATETIME NULL,
+    CONSTRAINT chk_user_role CHECK (role IN ('Admin', 'Customer', 'HeadAdmin'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 2. Customers Table
@@ -56,6 +59,16 @@ CREATE TABLE transactions (
     FOREIGN KEY (account_number) REFERENCES accounts(account_number) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 5. Admin Activity Log Table (login / logout audit trail)
+CREATE TABLE admin_activity_log (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    username VARCHAR(50) NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- =================================================================
 -- Seed Data Initialization
 -- =================================================================
@@ -63,14 +76,15 @@ CREATE TABLE transactions (
 -- Seed Users
 -- Passwords in plain text for demo (can be hashed in production)
 INSERT INTO users (user_id, username, password, role) VALUES
-(1, 'admin', 'admin123', 'Admin'),
-(2, 'san', 'user123', 'Customer'),
-(3, 'jane_smith', 'user123', 'Customer');
+(1, 'headadmin', 'headadmin123', 'HeadAdmin'),
+(2, 'admin', 'admin123', 'Admin'),
+(3, 'san', 'user123', 'Customer'),
+(4, 'jane_smith', 'user123', 'Customer');
 
 -- Seed Customers
 INSERT INTO customers (customer_id, user_id, name, email, phone, address) VALUES
-(101, 2, 'San', 'san@example.com', '+1-555-0192', '123 Main Street, New York, NY'),
-(102, 3, 'Jane Smith', 'jane.smith@example.com', '+1-555-0148', '456 Oak Avenue, Los Angeles, CA');
+(101, 3, 'San', 'san@example.com', '+1-555-0192', '123 Main Street, New York, NY'),
+(102, 4, 'Jane Smith', 'jane.smith@example.com', '+1-555-0148', '456 Oak Avenue, Los Angeles, CA');
 
 -- Seed Accounts
 INSERT INTO accounts (account_number, customer_id, balance, account_type, status, open_date) VALUES

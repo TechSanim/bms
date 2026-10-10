@@ -2,8 +2,11 @@ package db;
 
 import classes.Account;
 import classes.Admin;
+import classes.AdminActivityDTO;
+import classes.AdminDTO;
 import classes.Customer;
 import classes.CustomerAccountDTO;
+import classes.HeadAdmin;
 import classes.Transaction;
 import classes.User;
 
@@ -50,12 +53,21 @@ public class DatabaseOperations {
                 var userId = rs.getInt("user_id");
                 var userRole = rs.getString("role");
 
-                if ("Admin".equalsIgnoreCase(userRole)) {
+                if ("HeadAdmin".equalsIgnoreCase(userRole)) {
+                    var headAdmin = new HeadAdmin();
+                    headAdmin.setUserId(userId);
+                    headAdmin.setUsername(username);
+                    headAdmin.setPassword(password);
+                    headAdmin.setAdminId(userId);
+                    recordAdminLogin(conn, userId, username);
+                    return headAdmin;
+                } else if ("Admin".equalsIgnoreCase(userRole)) {
                     var admin = new Admin();
                     admin.setUserId(userId);
                     admin.setUsername(username);
                     admin.setPassword(password);
                     admin.setAdminId(userId);
+                    recordAdminLogin(conn, userId, username);
                     return admin;
                 } else if ("Customer".equalsIgnoreCase(userRole)) {
                     var customer = new Customer();
@@ -536,14 +548,53 @@ public class DatabaseOperations {
      * Retrieves all customer profiles joined with their account details for Admin panel.
      */
     public List<CustomerAccountDTO> getAllCustomersWithAccounts() throws SQLException {
+        return searchCustomers(null, null);
+    }
+
+    /**
+     * Searches customers with an optional filter field ("All", "Name", "Account Number",
+     * "Recent Transaction") and a free-text term.
+     */
+    public List<CustomerAccountDTO> searchCustomers(String field, String term) throws SQLException {
         var list = new ArrayList<CustomerAccountDTO>();
-        var sql = """
+        var sql = new StringBuilder("""
             SELECT c.customer_id, c.user_id, c.name, c.email, c.phone, c.address,
                    a.account_number, a.balance, a.account_type, a.status
             FROM customers c
             LEFT JOIN accounts a ON c.customer_id = a.customer_id
-            ORDER BY c.customer_id DESC
-            """;
+            """);
+
+        var params = new ArrayList<String>();
+        if (term != null && !term.isBlank()) {
+            String like = "%" + term.trim() + "%";
+            switch (field == null ? "All" : field) {
+                case "Name" -> {
+                    sql.append(" WHERE c.name LIKE ? ");
+                    params.add(like);
+                }
+                case "Account Number" -> {
+                    sql.append(" WHERE CAST(a.account_number AS CHAR) LIKE ? ");
+                    params.add(like);
+                }
+                case "Recent Transaction" -> {
+                    sql.append(" WHERE c.customer_id IN (")
+                       .append("SELECT a2.customer_id FROM accounts a2 ")
+                       .append("JOIN transactions t ON t.account_number = a2.account_number ")
+                       .append("WHERE t.description LIKE ? OR t.type LIKE ?) ");
+                    params.add(like);
+                    params.add(like);
+                }
+                default -> {
+                    sql.append(" WHERE c.name LIKE ? OR c.email LIKE ? OR c.phone LIKE ? ")
+                       .append("OR CAST(a.account_number AS CHAR) LIKE ? ");
+                    params.add(like);
+                    params.add(like);
+                    params.add(like);
+                    params.add(like);
+                }
+            }
+        }
+        sql.append(" ORDER BY c.customer_id DESC ");
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -551,11 +602,14 @@ public class DatabaseOperations {
 
         try {
             conn = dbConfig.getConnection();
-            stmt = conn.prepareStatement(sql);
+            stmt = conn.prepareStatement(sql.toString());
+            for (int i = 0; i < params.size(); i++) {
+                stmt.setString(i + 1, params.get(i));
+            }
             rs = stmt.executeQuery();
 
             while (rs.next()) {
-                var dto = new CustomerAccountDTO(
+                list.add(new CustomerAccountDTO(
                         rs.getInt("customer_id"),
                         rs.getInt("user_id"),
                         rs.getString("name"),
@@ -566,8 +620,7 @@ public class DatabaseOperations {
                         rs.getDouble("balance"),
                         rs.getString("account_type"),
                         rs.getString("status")
-                );
-                list.add(dto);
+                ));
             }
         } finally {
             DBConfig.closeResources(rs, stmt, conn);
@@ -579,12 +632,46 @@ public class DatabaseOperations {
      * Retrieves system-wide transaction audit records for Admin panel.
      */
     public List<Transaction> getAllTransactions() throws SQLException {
+        return searchTransactions(null, null);
+    }
+
+    /**
+     * Searches transactions with an optional filter field ("All", "Account Number",
+     * "Type", "Description") and a free-text term.
+     */
+    public List<Transaction> searchTransactions(String field, String term) throws SQLException {
         var list = new ArrayList<Transaction>();
-        var sql = """
+        var sql = new StringBuilder("""
             SELECT transaction_id, account_number, type, amount, timestamp, description
             FROM transactions
-            ORDER BY timestamp DESC
-            """;
+            """);
+
+        var params = new ArrayList<String>();
+        if (term != null && !term.isBlank()) {
+            String like = "%" + term.trim() + "%";
+            switch (field == null ? "All" : field) {
+                case "Account Number" -> {
+                    sql.append(" WHERE CAST(account_number AS CHAR) LIKE ? ");
+                    params.add(like);
+                }
+                case "Type" -> {
+                    sql.append(" WHERE type LIKE ? ");
+                    params.add(like);
+                }
+                case "Description" -> {
+                    sql.append(" WHERE description LIKE ? ");
+                    params.add(like);
+                }
+                default -> {
+                    sql.append(" WHERE CAST(account_number AS CHAR) LIKE ? OR type LIKE ? ")
+                       .append("OR description LIKE ? ");
+                    params.add(like);
+                    params.add(like);
+                    params.add(like);
+                }
+            }
+        }
+        sql.append(" ORDER BY timestamp DESC ");
 
         Connection conn = null;
         PreparedStatement stmt = null;
@@ -592,7 +679,10 @@ public class DatabaseOperations {
 
         try {
             conn = dbConfig.getConnection();
-            stmt = conn.prepareStatement(sql);
+            stmt = conn.prepareStatement(sql.toString());
+            for (int i = 0; i < params.size(); i++) {
+                stmt.setString(i + 1, params.get(i));
+            }
             rs = stmt.executeQuery();
 
             while (rs.next()) {
@@ -609,5 +699,206 @@ public class DatabaseOperations {
             DBConfig.closeResources(rs, stmt, conn);
         }
         return list;
+    }
+
+    // ------------------------------------------------------------------
+    // Admin management (Head Admin console)
+    // ------------------------------------------------------------------
+
+    /**
+     * Returns every Admin account with its online status and last login time.
+     */
+    public List<AdminDTO> getAllAdmins() throws SQLException {
+        var list = new ArrayList<AdminDTO>();
+        var sql = """
+            SELECT user_id, username, is_online, last_login
+            FROM users
+            WHERE role = 'Admin'
+            ORDER BY user_id
+            """;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql);
+            rs = stmt.executeQuery();
+            while (rs.next()) {
+                list.add(new AdminDTO(
+                        rs.getInt("user_id"),
+                        rs.getString("username"),
+                        rs.getBoolean("is_online"),
+                        rs.getTimestamp("last_login")
+                ));
+            }
+        } finally {
+            DBConfig.closeResources(rs, stmt, conn);
+        }
+        return list;
+    }
+
+    /**
+     * Creates a new Admin account.
+     */
+    public boolean createAdmin(String username, String password) throws SQLException {
+        var sql = "INSERT INTO users (username, password, role) VALUES (?, ?, 'Admin')";
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet keys = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            stmt.setString(1, username);
+            stmt.setString(2, password);
+            if (stmt.executeUpdate() == 0) {
+                return false;
+            }
+            keys = stmt.getGeneratedKeys();
+            if (keys.next()) {
+                logAdminActivity(conn, keys.getInt(1), username, "CREATED");
+            }
+            return true;
+        } finally {
+            if (keys != null) try { keys.close(); } catch (SQLException ignored) {}
+            if (stmt != null) try { stmt.close(); } catch (SQLException ignored) {}
+            DBConfig.closeConnection(conn);
+        }
+    }
+
+    /**
+     * Forces an Admin offline and records the event.
+     */
+    public boolean forceLogoutAdmin(int userId, String username) throws SQLException {
+        var updateSql = "UPDATE users SET is_online = 0 WHERE user_id = ? AND role = 'Admin'";
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(updateSql);
+            stmt.setInt(1, userId);
+            boolean updated = stmt.executeUpdate() > 0;
+            if (updated) {
+                logAdminActivity(conn, userId, username, "FORCE_LOGOUT");
+            }
+            return updated;
+        } finally {
+            if (stmt != null) try { stmt.close(); } catch (SQLException ignored) {}
+            DBConfig.closeConnection(conn);
+        }
+    }
+
+    /**
+     * Deletes an Admin account.
+     */
+    public boolean removeAdmin(int userId) throws SQLException {
+        var sql = "DELETE FROM users WHERE user_id = ? AND role = 'Admin'";
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, userId);
+            return stmt.executeUpdate() > 0;
+        } finally {
+            if (stmt != null) try { stmt.close(); } catch (SQLException ignored) {}
+            DBConfig.closeConnection(conn);
+        }
+    }
+
+    /**
+     * Returns the admin activity audit trail, newest first.
+     */
+    public List<AdminActivityDTO> getAdminActivityLog() throws SQLException {
+        var list = new ArrayList<AdminActivityDTO>();
+        var sql = """
+            SELECT log_id, username, action, timestamp
+            FROM admin_activity_log
+            ORDER BY timestamp DESC
+            """;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql);
+            rs = stmt.executeQuery();
+            while (rs.next()) {
+                list.add(new AdminActivityDTO(
+                        rs.getInt("log_id"),
+                        rs.getString("username"),
+                        rs.getString("action"),
+                        rs.getTimestamp("timestamp")
+                ));
+            }
+        } finally {
+            DBConfig.closeResources(rs, stmt, conn);
+        }
+        return list;
+    }
+
+    /**
+     * Returns the next sequential account number (highest existing + 1, starting at 1000000001).
+     */
+    public long getNextAccountNumber() throws SQLException {
+        var sql = "SELECT COALESCE(MAX(account_number), 1000000000) + 1 FROM accounts";
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql);
+            rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getLong(1);
+            }
+        } finally {
+            DBConfig.closeResources(rs, stmt, conn);
+        }
+        return 1000000001L;
+    }
+
+    /**
+     * Marks an admin online and records a LOGIN event (called on successful admin login).
+     */
+    private void recordAdminLogin(Connection conn, int userId, String username) throws SQLException {
+        try (var ps = conn.prepareStatement(
+                "UPDATE users SET is_online = 1, last_login = NOW() WHERE user_id = ?")) {
+            ps.setInt(1, userId);
+            ps.executeUpdate();
+        }
+        logAdminActivity(conn, userId, username, "LOGIN");
+    }
+
+    /**
+     * Marks an admin offline and records a LOGOUT event.
+     */
+    public void recordLogout(int userId, String username) {
+        if (userId <= 0) return;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement("UPDATE users SET is_online = 0 WHERE user_id = ?");
+            stmt.setInt(1, userId);
+            stmt.executeUpdate();
+            stmt.close();
+            stmt = null;
+            logAdminActivity(conn, userId, username, "LOGOUT");
+        } catch (SQLException e) {
+            System.err.println("Error recording logout: " + e.getMessage());
+        } finally {
+            if (stmt != null) try { stmt.close(); } catch (SQLException ignored) {}
+            DBConfig.closeConnection(conn);
+        }
+    }
+
+    private void logAdminActivity(Connection conn, int userId, String username, String action) throws SQLException {
+        try (var ps = conn.prepareStatement(
+                "INSERT INTO admin_activity_log (user_id, username, action) VALUES (?, ?, ?)")) {
+            ps.setInt(1, userId);
+            ps.setString(2, username);
+            ps.setString(3, action);
+            ps.executeUpdate();
+        }
     }
 }

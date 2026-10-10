@@ -14,11 +14,10 @@ public class DBConfig {
     private String username;
     private String password;
 
+    private volatile boolean schemaChecked = false;
+
     private DBConfig() {
-        // Connection parameters can be overridden (in order of precedence):
-        //   1. JVM system property:  -Ddb.password=secret
-        //   2. environment variable: DB_PASSWORD=secret
-        //   3. built-in default below
+
         this.url = resolve("db.url", "DB_URL",
                 "jdbc:mysql://localhost:3306/bank_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC");
         this.username = resolve("db.username", "DB_USER", "root");
@@ -62,15 +61,81 @@ public class DBConfig {
      */
     public Connection getConnection() throws SQLException {
         try {
-            return DriverManager.getConnection(url, username, password);
+            Connection conn = DriverManager.getConnection(url, username, password);
+            ensureSchemaUpToDate(conn);
+            return conn;
         } catch (SQLException e) {
             if (e.getErrorCode() == 1049 || (e.getMessage() != null && e.getMessage().toLowerCase().contains("unknown database"))) {
                 System.out.println("Database 'bank_db' not found. Executing automatic database & schema setup...");
                 if (createDatabaseAndSchema()) {
-                    return DriverManager.getConnection(url, username, password);
+                    Connection conn = DriverManager.getConnection(url, username, password);
+                    ensureSchemaUpToDate(conn);
+                    return conn;
                 }
             }
             throw e;
+        }
+    }
+
+    /**
+     * Applies idempotent schema migrations once per process so that databases
+     * created by older versions are upgraded without losing data.
+     */
+    private void ensureSchemaUpToDate(Connection conn) {
+        if (schemaChecked) return;
+        synchronized (DBConfig.class) {
+            if (schemaChecked) return;
+            try {
+                migrateSchema(conn);
+                schemaChecked = true;
+            } catch (SQLException e) {
+                System.err.println("Schema migration warning: " + e.getMessage());
+            }
+        }
+    }
+
+    private void migrateSchema(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            initializeTables(stmt);
+
+            addColumnIfMissing(stmt, "users", "is_online",
+                    "ALTER TABLE users ADD COLUMN is_online TINYINT(1) NOT NULL DEFAULT 0");
+            addColumnIfMissing(stmt, "users", "last_login",
+                    "ALTER TABLE users ADD COLUMN last_login DATETIME NULL");
+
+            ensureRoleConstraint(stmt);
+
+            stmt.executeUpdate("""
+                INSERT INTO users (username, password, role)
+                SELECT 'headadmin', 'headadmin123', 'HeadAdmin'
+                WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'headadmin')
+                """);
+        }
+    }
+
+    private void addColumnIfMissing(Statement stmt, String table, String column, String ddl) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM information_schema.columns "
+                + "WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?";
+        try (var ps = stmt.getConnection().prepareStatement(sql)) {
+            ps.setString(1, table);
+            ps.setString(2, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.executeUpdate(ddl);
+                }
+            }
+        }
+    }
+
+    private void ensureRoleConstraint(Statement stmt) {
+        try {
+            stmt.executeUpdate("ALTER TABLE users DROP CHECK chk_user_role");
+        } catch (SQLException ignored) {
+        }
+        try {
+            stmt.executeUpdate("ALTER TABLE users ADD CONSTRAINT chk_user_role "
+                    + "CHECK (role IN ('Admin', 'Customer', 'HeadAdmin'))");
+        } catch (SQLException ignored) {
         }
     }
 
@@ -110,7 +175,9 @@ public class DBConfig {
                 username VARCHAR(50) NOT NULL UNIQUE,
                 password VARCHAR(255) NOT NULL,
                 role VARCHAR(20) NOT NULL,
-                CONSTRAINT chk_user_role CHECK (role IN ('Admin', 'Customer'))
+                is_online TINYINT(1) NOT NULL DEFAULT 0,
+                last_login DATETIME NULL,
+                CONSTRAINT chk_user_role CHECK (role IN ('Admin', 'Customer', 'HeadAdmin'))
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """);
 
@@ -156,20 +223,33 @@ public class DBConfig {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """);
 
+        // 5. Admin Activity Log Table (login / logout audit trail)
+        stmt.executeUpdate("""
+            CREATE TABLE IF NOT EXISTS admin_activity_log (
+                log_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                username VARCHAR(50) NOT NULL,
+                action VARCHAR(20) NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+
         // Seed initial admin and customer data if users table is empty
         try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users")) {
             if (rs.next() && rs.getInt(1) == 0) {
                 stmt.executeUpdate("""
                     INSERT INTO users (user_id, username, password, role) VALUES
-                    (1, 'admin', 'admin123', 'Admin'),
-                    (2, 'san', 'user123', 'Customer'),
-                    (3, 'jane_smith', 'user123', 'Customer')
+                    (1, 'headadmin', 'headadmin123', 'HeadAdmin'),
+                    (2, 'admin', 'admin123', 'Admin'),
+                    (3, 'san', 'user123', 'Customer'),
+                    (4, 'jane_smith', 'user123', 'Customer')
                     """);
 
                 stmt.executeUpdate("""
                     INSERT INTO customers (customer_id, user_id, name, email, phone, address) VALUES
-                    (101, 2, 'San', 'san@example.com', '+1-555-0192', '123 Main Street, New York, NY'),
-                    (102, 3, 'Jane Smith', 'jane.smith@example.com', '+1-555-0148', '456 Oak Avenue, Los Angeles, CA')
+                    (101, 3, 'San', 'san@example.com', '+1-555-0192', '123 Main Street, New York, NY'),
+                    (102, 4, 'Jane Smith', 'jane.smith@example.com', '+1-555-0148', '456 Oak Avenue, Los Angeles, CA')
                     """);
 
                 stmt.executeUpdate("""

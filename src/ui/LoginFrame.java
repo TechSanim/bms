@@ -70,7 +70,7 @@ public class LoginFrame extends JFrame {
         formPanel.add(roleLabel, gbc);
 
         gbc.gridx = 1;
-        String[] roles = {"Customer", "Admin"};
+        String[] roles = {"Customer", "Admin", "HeadAdmin"};
         roleComboBox = new JComboBox<>(roles);
         roleComboBox.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         formPanel.add(roleComboBox, gbc);
@@ -124,13 +124,6 @@ public class LoginFrame extends JFrame {
 
         formPanel.add(buttonPanel, gbc);
         mainPanel.add(formPanel, BorderLayout.CENTER);
-
-        // Footer Note
-        JLabel footerLabel = new JLabel("Default Demo: admin/admin123 | san/user123", SwingConstants.CENTER);
-        footerLabel.setFont(new Font("Segoe UI", Font.ITALIC, 11));
-        footerLabel.setForeground(Color.GRAY);
-        footerLabel.setBorder(new EmptyBorder(0, 0, 10, 0));
-        mainPanel.add(footerLabel, BorderLayout.SOUTH);
 
         add(mainPanel);
 
