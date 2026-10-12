@@ -213,6 +213,7 @@ public class CustomerDashboard extends JFrame {
 
     private void handleDeposit() {
         if (!ensureActiveAccount("deposit")) return;
+        if (blockIfPendingClosure("deposit")) return;
 
         String input = JOptionPane.showInputDialog(this, "Enter amount to deposit ($):", "Deposit Funds", JOptionPane.PLAIN_MESSAGE);
         if (input == null || input.trim().isEmpty()) return;
@@ -344,6 +345,20 @@ public class CustomerDashboard extends JFrame {
         return true;
     }
 
+    private boolean blockIfPendingClosure(String action) {
+        try {
+            if (dao.hasPendingClosureRequest(customerAccount.getAccountNumber())) {
+                JOptionPane.showMessageDialog(this,
+                        "Your account has a pending closure request awaiting admin approval, so you cannot " + action + ".\n\nPlease wait for the bank admin to respond.",
+                        "Closure Pending", JOptionPane.WARNING_MESSAGE);
+                return true;
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Database Error: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+        return false;
+    }
+
     // ------------------------------------------------------------------
     // Account closure request
     // ------------------------------------------------------------------
@@ -356,6 +371,18 @@ public class CustomerDashboard extends JFrame {
         }
         if (!"Active".equalsIgnoreCase(customerAccount.getStatus())) {
             JOptionPane.showMessageDialog(this, "This account is already " + customerAccount.getStatus() + ".", "Account Not Active", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        try {
+            if (dao.hasPendingClosureRequest(customerAccount.getAccountNumber())) {
+                JOptionPane.showMessageDialog(this,
+                        "You already have an account closure request pending admin approval.",
+                        "Closure Already Requested", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Database Error: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 

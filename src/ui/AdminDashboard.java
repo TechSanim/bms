@@ -780,33 +780,33 @@ public class AdminDashboard extends JFrame {
         requestTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         requestTable.getColumnModel().getColumn(5).setPreferredWidth(260);
         requestTable.getColumnModel().getColumn(7).setPreferredWidth(200);
+        requestTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 1) {
+                    int row = requestTable.rowAtPoint(e.getPoint());
+                    if (row >= 0) {
+                        requestTable.setRowSelectionInterval(row, row);
+                        showRequestDetails(row);
+                    }
+                }
+            }
+        });
 
         panel.add(new JScrollPane(requestTable), BorderLayout.CENTER);
 
+        var hint = new JLabel("Click a request to view its full message and act on it.");
+        hint.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+        hint.setForeground(new Color(90, 100, 110));
+        hint.setBorder(new EmptyBorder(0, 0, 4, 0));
+        panel.add(hint, BorderLayout.NORTH);
+
         var buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
-
-        var approveButton = new JButton("Approve & Close Account");
-        approveButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        approveButton.setBackground(new Color(146, 43, 33));
-        approveButton.setForeground(Color.WHITE);
-        approveButton.setFocusPainted(false);
-        approveButton.addActionListener(e -> approveSelectedClosure());
-
-        var replyButton = new JButton("Reply / Resolve");
-        replyButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        replyButton.addActionListener(e -> replySelectedRequest());
-
-        var rejectButton = new JButton("Reject");
-        rejectButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        rejectButton.addActionListener(e -> rejectSelectedRequest());
 
         var refreshButton = new JButton("Refresh");
         refreshButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         refreshButton.addActionListener(e -> loadCustomerRequests());
 
-        buttonPanel.add(approveButton);
-        buttonPanel.add(replyButton);
-        buttonPanel.add(rejectButton);
         buttonPanel.add(refreshButton);
         panel.add(buttonPanel, BorderLayout.SOUTH);
 
@@ -836,32 +836,73 @@ public class AdminDashboard extends JFrame {
         }
     }
 
-    private void approveSelectedClosure() {
-        int row = requestTable.getSelectedRow();
-        if (row < 0) {
-            JOptionPane.showMessageDialog(this, "Please select a request first.", "No Selection", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
+    private void showRequestDetails(int row) {
         int requestId = (int) requestTableModel.getValueAt(row, 0);
-        String type = (String) requestTableModel.getValueAt(row, 3);
+        String customer = String.valueOf(requestTableModel.getValueAt(row, 1));
         Object acctObj = requestTableModel.getValueAt(row, 2);
-        String status = (String) requestTableModel.getValueAt(row, 6);
+        String type = String.valueOf(requestTableModel.getValueAt(row, 3));
+        String subject = String.valueOf(requestTableModel.getValueAt(row, 4));
+        String message = String.valueOf(requestTableModel.getValueAt(row, 5));
+        String status = String.valueOf(requestTableModel.getValueAt(row, 6));
+        String response = String.valueOf(requestTableModel.getValueAt(row, 7));
+        String submitted = String.valueOf(requestTableModel.getValueAt(row, 8));
 
-        if (!"Account Closure".equals(type)) {
-            JOptionPane.showMessageDialog(this, "Only 'Account Closure' requests can be approved here.", "Not a Closure Request", JOptionPane.WARNING_MESSAGE);
+        boolean isClosure = "Account Closure".equals(type);
+        boolean pending = "Pending".equals(status);
+
+        JTextArea area = new JTextArea();
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        StringBuilder sb = new StringBuilder();
+        sb.append("Request ID:  ").append(requestId).append('\n');
+        sb.append("Customer:    ").append(customer).append('\n');
+        sb.append("Account #:   ").append(acctObj).append('\n');
+        sb.append("Type:        ").append(type).append('\n');
+        sb.append("Status:      ").append(status).append('\n');
+        sb.append("Submitted:   ").append(submitted).append("\n\n");
+        sb.append("Subject:\n").append(subject).append("\n\n");
+        sb.append("Message:\n").append(message).append('\n');
+        if (response != null && !response.isEmpty() && !"null".equals(response)) {
+            sb.append("\nAdmin Response:\n").append(response).append('\n');
+        }
+        area.setText(sb.toString());
+        area.setCaretPosition(0);
+
+        JScrollPane scroll = new JScrollPane(area);
+        scroll.setPreferredSize(new Dimension(540, 380));
+
+        if (!pending) {
+            JOptionPane.showMessageDialog(this, scroll, "Request #" + requestId + " - " + type, JOptionPane.PLAIN_MESSAGE);
             return;
         }
-        if (!(acctObj instanceof Long)) {
-            JOptionPane.showMessageDialog(this, "This request has no linked account.", "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-        if (!"Pending".equals(status)) {
-            JOptionPane.showMessageDialog(this, "This request has already been " + status + ".", "Already Handled", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
 
-        long accountNumber = (Long) acctObj;
+        Object[] options = isClosure
+                ? new Object[]{"Approve & Close Account", "Reject", "Close"}
+                : new Object[]{"Reply", "Reject", "Close"};
 
+        int choice = JOptionPane.showOptionDialog(this, scroll,
+                "Request #" + requestId + " - " + type,
+                JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE,
+                null, options, options[0]);
+
+        if (choice == 0) {
+            if (isClosure) {
+                if (acctObj instanceof Long) {
+                    approveClosure((Long) acctObj, requestId);
+                } else {
+                    JOptionPane.showMessageDialog(this, "This request has no linked account.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } else {
+                replyToRequest(requestId);
+            }
+        } else if (choice == 1) {
+            rejectRequest(requestId);
+        }
+    }
+
+    private void approveClosure(long accountNumber, int requestId) {
         var responseField = new JTextField("Account closure approved.", 30);
         var dialogPanel = new JPanel(new GridLayout(2, 1, 6, 6));
         dialogPanel.add(new JLabel("Close account #" + accountNumber + "? Optional note to customer:"));
@@ -886,20 +927,7 @@ public class AdminDashboard extends JFrame {
         }
     }
 
-    private void replySelectedRequest() {
-        int row = requestTable.getSelectedRow();
-        if (row < 0) {
-            JOptionPane.showMessageDialog(this, "Please select a request first.", "No Selection", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        int requestId = (int) requestTableModel.getValueAt(row, 0);
-        String type = (String) requestTableModel.getValueAt(row, 3);
-
-        if ("Account Closure".equals(type)) {
-            JOptionPane.showMessageDialog(this, "Use 'Approve & Close Account' or 'Reject' for closure requests.", "Invalid Action", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
+    private void replyToRequest(int requestId) {
         JTextArea responseArea = new JTextArea(4, 30);
         responseArea.setLineWrap(true);
         responseArea.setWrapStyleWord(true);
@@ -925,19 +953,7 @@ public class AdminDashboard extends JFrame {
         }
     }
 
-    private void rejectSelectedRequest() {
-        int row = requestTable.getSelectedRow();
-        if (row < 0) {
-            JOptionPane.showMessageDialog(this, "Please select a request first.", "No Selection", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        int requestId = (int) requestTableModel.getValueAt(row, 0);
-        String status = (String) requestTableModel.getValueAt(row, 6);
-        if (!"Pending".equals(status)) {
-            JOptionPane.showMessageDialog(this, "This request has already been " + status + ".", "Already Handled", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-
+    private void rejectRequest(int requestId) {
         String reason = JOptionPane.showInputDialog(this, "Reason for rejecting this request:", "Reject Request", JOptionPane.PLAIN_MESSAGE);
         if (reason == null) return;
         reason = reason.trim();

@@ -288,6 +288,10 @@ public class DatabaseOperations {
             return false;
         }
 
+        if (hasPendingClosureRequest(accountNumber)) {
+            return false;
+        }
+
         var updateSql = """
             UPDATE accounts
             SET balance = balance + ?
@@ -956,6 +960,28 @@ public class DatabaseOperations {
      */
     public List<CustomerRequestDTO> getAllCustomerRequests() throws SQLException {
         return queryRequests(REQUEST_BASE_SQL + " ORDER BY r.created_at DESC", null);
+    }
+
+    /**
+     * Returns true if the given account has an account-closure request still awaiting admin action.
+     */
+    public boolean hasPendingClosureRequest(long accountNumber) throws SQLException {
+        var sql = """
+            SELECT COUNT(*) FROM customer_requests
+            WHERE account_number = ? AND type = 'Account Closure' AND status = 'Pending'
+            """;
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql);
+            stmt.setLong(1, accountNumber);
+            rs = stmt.executeQuery();
+            return rs.next() && rs.getInt(1) > 0;
+        } finally {
+            DBConfig.closeResources(rs, stmt, conn);
+        }
     }
 
     private List<CustomerRequestDTO> queryRequests(String sql, Integer customerId) throws SQLException {
