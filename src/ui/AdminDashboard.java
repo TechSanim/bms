@@ -405,6 +405,7 @@ public class AdminDashboard extends JFrame {
         customerTable.setRowHeight(24);
         customerTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         customerTable.getTableHeader().setBackground(new Color(230, 235, 240));
+        customerTable.getTableHeader().setReorderingAllowed(false);
 
         var scrollPane = new JScrollPane(customerTable);
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -494,6 +495,7 @@ public class AdminDashboard extends JFrame {
         auditTable.setRowHeight(24);
         auditTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         auditTable.getTableHeader().setBackground(new Color(230, 235, 240));
+        auditTable.getTableHeader().setReorderingAllowed(false);
 
         var scrollPane = new JScrollPane(auditTable);
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -553,6 +555,7 @@ public class AdminDashboard extends JFrame {
         adminTable.setRowHeight(24);
         adminTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         adminTable.getTableHeader().setBackground(new Color(230, 235, 240));
+        adminTable.getTableHeader().setReorderingAllowed(false);
 
         panel.add(new JScrollPane(adminTable), BorderLayout.CENTER);
 
@@ -719,6 +722,7 @@ public class AdminDashboard extends JFrame {
         adminActivityTable.setRowHeight(24);
         adminActivityTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         adminActivityTable.getTableHeader().setBackground(new Color(230, 235, 240));
+        adminActivityTable.getTableHeader().setReorderingAllowed(false);
 
         panel.add(new JScrollPane(adminActivityTable), BorderLayout.CENTER);
 
@@ -772,6 +776,7 @@ public class AdminDashboard extends JFrame {
         requestTable.setRowHeight(24);
         requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         requestTable.getTableHeader().setBackground(new Color(230, 235, 240));
+        requestTable.getTableHeader().setReorderingAllowed(false);
         requestTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         requestTable.getColumnModel().getColumn(5).setPreferredWidth(260);
         requestTable.getColumnModel().getColumn(7).setPreferredWidth(200);

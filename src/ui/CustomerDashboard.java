@@ -28,7 +28,6 @@ public class CustomerDashboard extends JFrame {
     private DefaultTableModel tableModel;
 
     // Support & messages
-    private JComboBox<String> requestTypeCombo;
     private JTextField subjectField;
     private JTextArea messageArea;
     private JTable requestTable;
@@ -95,7 +94,7 @@ public class CustomerDashboard extends JFrame {
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 13));
         tabbedPane.addTab("My Account", createAccountPanel());
-        tabbedPane.addTab("Support & Messages", createSupportPanel());
+        tabbedPane.addTab("Contact Us", createSupportPanel());
         tabbedPane.addChangeListener(e -> {
             if (tabbedPane.getSelectedIndex() == 1) {
                 loadMyRequests();
@@ -187,6 +186,7 @@ public class CustomerDashboard extends JFrame {
         transactionTable.setRowHeight(24);
         transactionTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         transactionTable.getTableHeader().setBackground(new Color(230, 235, 240));
+        transactionTable.getTableHeader().setReorderingAllowed(false);
 
         JScrollPane scrollPane = new JScrollPane(transactionTable);
         tablePanel.add(tableTitle, BorderLayout.NORTH);
@@ -415,15 +415,11 @@ public class CustomerDashboard extends JFrame {
         JPanel formPanel = new JPanel(new BorderLayout(8, 8));
         formPanel.setBackground(Color.WHITE);
         formPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createTitledBorder("Send a message to the bank"),
+                BorderFactory.createTitledBorder("Contact Us"),
                 new EmptyBorder(8, 12, 8, 12)));
 
         JPanel topRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         topRow.setOpaque(false);
-        topRow.add(new JLabel("Type:"));
-        requestTypeCombo = new JComboBox<>(new String[]{"Feedback", "Complaint", "Query"});
-        requestTypeCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        topRow.add(requestTypeCombo);
         topRow.add(new JLabel("Subject:"));
         subjectField = new JTextField(28);
         subjectField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
@@ -434,6 +430,14 @@ public class CustomerDashboard extends JFrame {
         messageArea.setLineWrap(true);
         messageArea.setWrapStyleWord(true);
         JScrollPane messageScroll = new JScrollPane(messageArea);
+
+        JLabel messageLabel = new JLabel("Message:");
+        messageLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        messageLabel.setBorder(new EmptyBorder(4, 0, 2, 0));
+        JPanel messagePanel = new JPanel(new BorderLayout(0, 0));
+        messagePanel.setOpaque(false);
+        messagePanel.add(messageLabel, BorderLayout.NORTH);
+        messagePanel.add(messageScroll, BorderLayout.CENTER);
 
         JButton sendButton = new JButton("Send Message");
         sendButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
@@ -447,7 +451,6 @@ public class CustomerDashboard extends JFrame {
         clearButton.addActionListener(e -> {
             subjectField.setText("");
             messageArea.setText("");
-            requestTypeCombo.setSelectedIndex(0);
         });
 
         JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
@@ -456,7 +459,7 @@ public class CustomerDashboard extends JFrame {
         buttonRow.add(clearButton);
 
         formPanel.add(topRow, BorderLayout.NORTH);
-        formPanel.add(messageScroll, BorderLayout.CENTER);
+        formPanel.add(messagePanel, BorderLayout.CENTER);
         formPanel.add(buttonRow, BorderLayout.SOUTH);
 
         // My requests table
@@ -479,6 +482,7 @@ public class CustomerDashboard extends JFrame {
         requestTable.setRowHeight(24);
         requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         requestTable.getTableHeader().setBackground(new Color(230, 235, 240));
+        requestTable.getTableHeader().setReorderingAllowed(false);
 
         tablePanel.add(tableTitle, BorderLayout.NORTH);
         tablePanel.add(new JScrollPane(requestTable), BorderLayout.CENTER);
@@ -497,29 +501,28 @@ public class CustomerDashboard extends JFrame {
     }
 
     private void handleSendFeedback() {
-        String type = (String) requestTypeCombo.getSelectedItem();
         String subject = subjectField.getText().trim();
         String message = messageArea.getText().trim();
 
-        if (message.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please write a message before sending.", "Validation Error", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
         if (subject.isEmpty()) {
-            subject = type;
+            JOptionPane.showMessageDialog(this, "Please enter a subject before sending.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
         }
         if (subject.length() > 150) {
             JOptionPane.showMessageDialog(this, "Subject cannot exceed 150 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        if (message.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please write a message before sending.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
         try {
-            boolean ok = dao.createCustomerRequest(customer.getCustomerId(), null, type, subject, message);
+            boolean ok = dao.createCustomerRequest(customer.getCustomerId(), null, "Message", subject, message);
             if (ok) {
                 JOptionPane.showMessageDialog(this, "Your message has been sent to the bank. You will see the reply here.", "Message Sent", JOptionPane.INFORMATION_MESSAGE);
                 subjectField.setText("");
                 messageArea.setText("");
-                requestTypeCombo.setSelectedIndex(0);
                 loadMyRequests();
             } else {
                 JOptionPane.showMessageDialog(this, "Could not send your message.", "Error", JOptionPane.ERROR_MESSAGE);
