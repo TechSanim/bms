@@ -12,6 +12,5 @@ public record CustomerRequestDTO(
         String message,
         String status,
         String response,
-        String handledBy,
         Timestamp createdAt
 ) {}

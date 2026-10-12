@@ -12,15 +12,6 @@ public class Customer extends User {
         setRole("Customer");
     }
 
-    public Customer(int userId, String username, String password, int customerId, String name, String email, String phone, String address) {
-        super(userId, username, password, "Customer");
-        this.customerId = customerId;
-        this.name = name;
-        this.email = email;
-        this.phone = phone;
-        this.address = address;
-    }
-
     public Customer(String username, String password, String name, String email, String phone, String address) {
         super(username, password, "Customer");
         this.name = name;

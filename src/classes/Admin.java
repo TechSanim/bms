@@ -8,16 +8,6 @@ public class Admin extends User {
         setRole("Admin");
     }
 
-    public Admin(int userId, String username, String password, int adminId) {
-        super(userId, username, password, "Admin");
-        this.adminId = adminId;
-    }
-
-    public Admin(String username, String password, int adminId) {
-        super(username, password, "Admin");
-        this.adminId = adminId;
-    }
-
     public void setAdminId(int adminId) {
         this.adminId = adminId;
     }

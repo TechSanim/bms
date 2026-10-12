@@ -550,20 +550,13 @@ public class DatabaseOperations {
     }
 
     /**
-     * Retrieves all customer profiles joined with their account details for Admin panel.
-     */
-    public List<CustomerAccountDTO> getAllCustomersWithAccounts() throws SQLException {
-        return searchCustomers(null, null);
-    }
-
-    /**
      * Searches customers with an optional filter field ("All", "Name", "Account Number",
      * "Recent Transaction") and a free-text term.
      */
     public List<CustomerAccountDTO> searchCustomers(String field, String term) throws SQLException {
         var list = new ArrayList<CustomerAccountDTO>();
         var sql = new StringBuilder("""
-            SELECT c.customer_id, c.user_id, c.name, c.email, c.phone, c.address,
+            SELECT c.customer_id, c.user_id, c.name, c.email, c.phone,
                    a.account_number, a.balance, a.account_type, a.status
             FROM customers c
             LEFT JOIN accounts a ON c.customer_id = a.customer_id
@@ -620,7 +613,6 @@ public class DatabaseOperations {
                         rs.getString("name"),
                         rs.getString("email"),
                         rs.getString("phone"),
-                        rs.getString("address"),
                         rs.getLong("account_number"),
                         rs.getDouble("balance"),
                         rs.getString("account_type"),
@@ -631,13 +623,6 @@ public class DatabaseOperations {
             DBConfig.closeResources(rs, stmt, conn);
         }
         return list;
-    }
-
-    /**
-     * Retrieves system-wide transaction audit records for Admin panel.
-     */
-    public List<Transaction> getAllTransactions() throws SQLException {
-        return searchTransactions(null, null);
     }
 
     /**
@@ -913,7 +898,7 @@ public class DatabaseOperations {
 
     private static final String REQUEST_BASE_SQL = """
         SELECT r.request_id, r.customer_id, c.name AS customer_name, r.account_number,
-               r.type, r.subject, r.message, r.status, r.response, r.handled_by, r.created_at
+               r.type, r.subject, r.message, r.status, r.response, r.created_at
         FROM customer_requests r
         JOIN customers c ON r.customer_id = c.customer_id
         """;
@@ -1009,7 +994,6 @@ public class DatabaseOperations {
                         rs.getString("message"),
                         rs.getString("status"),
                         rs.getString("response"),
-                        rs.getString("handled_by"),
                         rs.getTimestamp("created_at")
                 ));
             }

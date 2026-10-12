@@ -13,15 +13,6 @@ public class Account {
     public Account() {
     }
 
-    public Account(long accountNumber, int customerId, double balance, String accountType, String status, Date openDate) {
-        this.accountNumber = accountNumber;
-        this.customerId = customerId;
-        this.balance = balance;
-        this.accountType = accountType;
-        this.status = status;
-        this.openDate = openDate;
-    }
-
     public Account(long accountNumber, int customerId, double balance, String accountType) {
         this.accountNumber = accountNumber;
         this.customerId = customerId;

@@ -13,23 +13,6 @@ public class Transaction {
     public Transaction() {
     }
 
-    public Transaction(int transactionId, long accountNumber, String type, double amount, Timestamp timestamp, String description) {
-        this.transactionId = transactionId;
-        this.accountNumber = accountNumber;
-        this.type = type;
-        this.amount = amount;
-        this.timestamp = timestamp;
-        this.description = description;
-    }
-
-    public Transaction(long accountNumber, String type, double amount, String description) {
-        this.accountNumber = accountNumber;
-        this.type = type;
-        this.amount = amount;
-        this.timestamp = new Timestamp(System.currentTimeMillis());
-        this.description = description;
-    }
-
     public int getTransactionId() {
         return transactionId;
     }

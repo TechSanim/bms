@@ -6,7 +6,6 @@ public record CustomerAccountDTO(
         String name,
         String email,
         String phone,
-        String address,
         long accountNumber,
         double balance,
         String accountType,

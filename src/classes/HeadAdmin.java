@@ -7,11 +7,6 @@ public class HeadAdmin extends Admin {
         setRole("HeadAdmin");
     }
 
-    public HeadAdmin(int userId, String username, String password) {
-        super(userId, username, password, userId);
-        setRole("HeadAdmin");
-    }
-
     @Override
     public String toString() {
         return "HeadAdmin{" +
