@@ -1,6 +1,4 @@
--- =================================================================
--- Bank Management System Database Schema Script (MySQL)
--- =================================================================
+-- To create database and tables
 
 CREATE DATABASE IF NOT EXISTS bank_db;
 USE bank_db;
@@ -86,12 +84,10 @@ CREATE TABLE customer_requests (
     FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- =================================================================
--- Seed Data Initialization
--- =================================================================
+
+--seed data
 
 -- Seed Users
--- Passwords in plain text for demo (can be hashed in production)
 INSERT INTO users (user_id, username, password, role) VALUES
 (1, 'headadmin', 'headadmin123', 'HeadAdmin'),
 (2, 'admin', 'admin123', 'Admin'),
