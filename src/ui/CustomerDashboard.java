@@ -173,7 +173,7 @@ public class CustomerDashboard extends JFrame {
         tableTitle.setFont(new Font("Segoe UI", Font.BOLD, 15));
         tableTitle.setBorder(new EmptyBorder(5, 0, 5, 0));
 
-        String[] columns = {"Tx ID", "Type", "Amount ($)", "Timestamp", "Description"};
+        String[] columns = {"Type", "Amount ($)", "Timestamp", "Description"};
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -601,7 +601,6 @@ public class CustomerDashboard extends JFrame {
             List<Transaction> list = dao.getTransactionHistory(customerAccount.getAccountNumber());
             for (Transaction t : list) {
                 Object[] row = {
-                        t.getTransactionId(),
                         t.getType(),
                         String.format("%.2f", t.getAmount()),
                         t.getTimestamp(),
