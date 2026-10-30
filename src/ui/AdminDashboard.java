@@ -14,6 +14,10 @@ import db.DatabaseOperations;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 import java.awt.*;
 import java.sql.SQLException;
 import java.util.List;
@@ -180,6 +184,7 @@ public class AdminDashboard extends JFrame {
         gbc.gridx = 3;
         passwordField = new JPasswordField(15);
         passwordField.setFont(fieldFont);
+        passwordField.setToolTipText("Min 8 characters with an uppercase letter, lowercase letter, number, and symbol.");
         formPanel.add(passwordField, gbc);
 
         // Row 1: Full Name & Email
@@ -203,6 +208,28 @@ public class AdminDashboard extends JFrame {
         gbc.gridx = 1;
         phoneField = new JTextField(15);
         phoneField.setFont(fieldFont);
+        phoneField.setToolTipText("Enter a 10-digit phone number.");
+        ((AbstractDocument) phoneField.getDocument()).setDocumentFilter(new DocumentFilter() {
+            @Override
+            public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr)
+                    throws BadLocationException {
+                if (string == null) return;
+                int currentLength = fb.getDocument().getLength();
+                if (string.matches("\\d*") && currentLength + string.length() <= 10) {
+                    super.insertString(fb, offset, string, attr);
+                }
+            }
+
+            @Override
+            public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs)
+                    throws BadLocationException {
+                int currentLength = fb.getDocument().getLength();
+                int newLength = currentLength - length + (text == null ? 0 : text.length());
+                if ((text == null || text.matches("\\d*")) && newLength <= 10) {
+                    super.replace(fb, offset, length, text, attrs);
+                }
+            }
+        });
         formPanel.add(phoneField, gbc);
 
         gbc.gridx = 2;
@@ -272,8 +299,15 @@ public class AdminDashboard extends JFrame {
         var depositStr = initialDepositField.getText().trim();
         var accountType = (String) accountTypeCombo.getSelectedItem();
 
-        if (username.isEmpty() || password.isEmpty() || name.isEmpty() || email.isEmpty() || phone.isEmpty() || accNumStr.isEmpty() || depositStr.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please fill in all required fields (Username, Password, Name, Email, Phone, Account #, Deposit).", "Validation Error", JOptionPane.WARNING_MESSAGE);
+        if (username.isEmpty() || password.isEmpty() || name.isEmpty() || email.isEmpty() || phone.isEmpty()
+                || address.isEmpty() || accNumStr.isEmpty() || depositStr.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please fill in all required fields (Username, Password, Name, Email, Phone, Address, Account #, Deposit).", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String passwordError = validatePassword(password);
+        if (passwordError != null) {
+            JOptionPane.showMessageDialog(this, passwordError, "Invalid Password", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -297,8 +331,8 @@ public class AdminDashboard extends JFrame {
             return;
         }
 
-        if (phone.length() > 20) {
-            JOptionPane.showMessageDialog(this, "Phone number cannot exceed 20 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+        if (!phone.matches("\\d{10}")) {
+            JOptionPane.showMessageDialog(this, "Phone number must be exactly 10 digits.", "Validation Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -311,8 +345,8 @@ public class AdminDashboard extends JFrame {
                 return;
             }
             initialDeposit = Double.parseDouble(depositStr);
-            if (!Double.isFinite(initialDeposit) || initialDeposit < 0) {
-                JOptionPane.showMessageDialog(this, "Initial deposit must be a valid non-negative number.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            if (!Double.isFinite(initialDeposit) || initialDeposit < 1000) {
+                JOptionPane.showMessageDialog(this, "Initial deposit must be at least $1000.00.", "Validation Error", JOptionPane.WARNING_MESSAGE);
                 return;
             }
         } catch (NumberFormatException e) {
@@ -338,6 +372,28 @@ public class AdminDashboard extends JFrame {
         }
     }
 
+    private String validatePassword(String password) {
+        if (password.length() < 8) {
+            return "Password must be at least 8 characters long.";
+        }
+        boolean hasUpper = false, hasLower = false, hasDigit = false, hasSymbol = false;
+        for (char c : password.toCharArray()) {
+            if (Character.isUpperCase(c)) {
+                hasUpper = true;
+            } else if (Character.isLowerCase(c)) {
+                hasLower = true;
+            } else if (Character.isDigit(c)) {
+                hasDigit = true;
+            } else if (!Character.isWhitespace(c)) {
+                hasSymbol = true;
+            }
+        }
+        if (!hasUpper || !hasLower || !hasDigit || !hasSymbol) {
+            return "Password must contain at least one uppercase letter, one lowercase letter, one number, and one symbol.";
+        }
+        return null;
+    }
+
     private void clearRegistrationForm() {
         usernameField.setText("");
         passwordField.setText("");
@@ -353,7 +409,7 @@ public class AdminDashboard extends JFrame {
         try {
             return String.valueOf(dao.getNextAccountNumber());
         } catch (SQLException e) {
-            return "1000000001";
+            return "10001";
         }
     }
 
@@ -627,6 +683,11 @@ public class AdminDashboard extends JFrame {
             JOptionPane.showMessageDialog(this, "Username and Password are required.", "Validation Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        String passwordError = validatePassword(password);
+        if (passwordError != null) {
+            JOptionPane.showMessageDialog(this, passwordError, "Invalid Password", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         if (username.length() > 50) {
             JOptionPane.showMessageDialog(this, "Username cannot exceed 50 characters.", "Validation Error", JOptionPane.WARNING_MESSAGE);
             return;
@@ -795,12 +856,6 @@ public class AdminDashboard extends JFrame {
 
         panel.add(new JScrollPane(requestTable), BorderLayout.CENTER);
 
-        var hint = new JLabel("Click a request to view its full message and act on it.");
-        hint.setFont(new Font("Segoe UI", Font.ITALIC, 12));
-        hint.setForeground(new Color(90, 100, 110));
-        hint.setBorder(new EmptyBorder(0, 0, 4, 0));
-        panel.add(hint, BorderLayout.NORTH);
-
         var buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
 
         var refreshButton = new JButton("Refresh");
@@ -917,7 +972,7 @@ public class AdminDashboard extends JFrame {
 
         try {
             if (dao.approveAccountClosure(requestId, accountNumber, response, admin.getUsername())) {
-                JOptionPane.showMessageDialog(this, "Account #" + accountNumber + " has been closed.", "Account Closed", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Account #" + accountNumber + " has been closed and the customer can no longer log in.", "Account Closed", JOptionPane.INFORMATION_MESSAGE);
                 loadCustomerRequests();
             } else {
                 JOptionPane.showMessageDialog(this, "Could not close the account.", "Error", JOptionPane.ERROR_MESSAGE);

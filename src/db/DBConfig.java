@@ -103,6 +103,9 @@ public class DBConfig {
             addColumnIfMissing(stmt, "users", "last_login",
                     "ALTER TABLE users ADD COLUMN last_login DATETIME NULL");
 
+            stmt.executeUpdate("ALTER TABLE users MODIFY COLUMN username VARCHAR(50) NULL");
+            stmt.executeUpdate("ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NULL");
+
             ensureRoleConstraint(stmt);
 
             stmt.executeUpdate("""
@@ -172,8 +175,8 @@ public class DBConfig {
         stmt.executeUpdate("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(50) NOT NULL UNIQUE,
-                password VARCHAR(255) NOT NULL,
+                username VARCHAR(50) NULL UNIQUE,
+                password VARCHAR(255) NULL,
                 role VARCHAR(20) NOT NULL,
                 is_online TINYINT(1) NOT NULL DEFAULT 0,
                 last_login DATETIME NULL,
@@ -272,14 +275,14 @@ public class DBConfig {
 
                 stmt.executeUpdate("""
                     INSERT INTO accounts (account_number, customer_id, balance, account_type, status, open_date) VALUES
-                    (1000000001, 101, 5000.00, 'Savings', 'Active', '2025-01-15'),
-                    (1000000002, 102, 2500.50, 'Current', 'Active', '2025-02-01')
+                    (10001, 101, 5000.00, 'Savings', 'Active', '2025-01-15'),
+                    (10002, 102, 2500.50, 'Current', 'Active', '2025-02-01')
                     """);
 
                 stmt.executeUpdate("""
                     INSERT INTO transactions (account_number, type, amount, description) VALUES
-                    (1000000001, 'DEPOSIT', 5000.00, 'Initial Account Opening Deposit'),
-                    (1000000002, 'DEPOSIT', 2500.50, 'Initial Account Opening Deposit')
+                    (10001, 'DEPOSIT', 5000.00, 'Initial Account Opening Deposit'),
+                    (10002, 'DEPOSIT', 2500.50, 'Initial Account Opening Deposit')
                     """);
             }
         }

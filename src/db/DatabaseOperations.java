@@ -550,8 +550,8 @@ public class DatabaseOperations {
     }
 
     /**
-     * Searches customers with an optional filter field ("All", "Name", "Account Number",
-     * "Recent Transaction") and a free-text term.
+     * Searches customers with an optional filter field ("All", "Name", "Account Number")
+     *  and a free-text term.
      */
     public List<CustomerAccountDTO> searchCustomers(String field, String term) throws SQLException {
         var list = new ArrayList<CustomerAccountDTO>();
@@ -572,14 +572,6 @@ public class DatabaseOperations {
                 }
                 case "Account Number" -> {
                     sql.append(" WHERE CAST(a.account_number AS CHAR) LIKE ? ");
-                    params.add(like);
-                }
-                case "Recent Transaction" -> {
-                    sql.append(" WHERE c.customer_id IN (")
-                       .append("SELECT a2.customer_id FROM accounts a2 ")
-                       .append("JOIN transactions t ON t.account_number = a2.account_number ")
-                       .append("WHERE t.description LIKE ? OR t.type LIKE ?) ");
-                    params.add(like);
                     params.add(like);
                 }
                 default -> {
@@ -827,10 +819,10 @@ public class DatabaseOperations {
     }
 
     /**
-     * Returns the next sequential account number (highest existing + 1, starting at 1000000001).
+     * Returns the next sequential account number (highest existing + 1, starting at 10001).
      */
     public long getNextAccountNumber() throws SQLException {
-        var sql = "SELECT COALESCE(MAX(account_number), 1000000000) + 1 FROM accounts";
+        var sql = "SELECT COALESCE(MAX(account_number), 10000) + 1 FROM accounts";
         Connection conn = null;
         PreparedStatement stmt = null;
         ResultSet rs = null;
@@ -844,7 +836,7 @@ public class DatabaseOperations {
         } finally {
             DBConfig.closeResources(rs, stmt, conn);
         }
-        return 1000000001L;
+        return 10001L;
     }
 
     /**
@@ -1004,13 +996,23 @@ public class DatabaseOperations {
     }
 
     /**
-     * Approves an account-closure request: marks the account Closed and the request Approved.
+     * Approves an account-closure request: marks the account Closed, removes the
+     * customer's login credentials, and marks the request Approved.
      */
     public boolean approveAccountClosure(int requestId, long accountNumber, String response, String handledBy) throws SQLException {
         var closeSql = "UPDATE accounts SET status = 'Closed' WHERE account_number = ?";
+        var credentialsSql = """
+            UPDATE users SET username = NULL, password = NULL
+            WHERE user_id IN (
+                SELECT c.user_id FROM customers c
+                JOIN accounts a ON a.customer_id = c.customer_id
+                WHERE a.account_number = ?
+            )
+            """;
         var reqSql = "UPDATE customer_requests SET status = 'Approved', response = ?, handled_by = ? WHERE request_id = ?";
         Connection conn = null;
         PreparedStatement closeStmt = null;
+        PreparedStatement credentialsStmt = null;
         PreparedStatement reqStmt = null;
         try {
             conn = dbConfig.getConnection();
@@ -1019,6 +1021,10 @@ public class DatabaseOperations {
             closeStmt = conn.prepareStatement(closeSql);
             closeStmt.setLong(1, accountNumber);
             closeStmt.executeUpdate();
+
+            credentialsStmt = conn.prepareStatement(credentialsSql);
+            credentialsStmt.setLong(1, accountNumber);
+            credentialsStmt.executeUpdate();
 
             reqStmt = conn.prepareStatement(reqSql);
             reqStmt.setString(1, response);
@@ -1035,6 +1041,7 @@ public class DatabaseOperations {
             throw e;
         } finally {
             if (closeStmt != null) try { closeStmt.close(); } catch (SQLException ignored) {}
+            if (credentialsStmt != null) try { credentialsStmt.close(); } catch (SQLException ignored) {}
             if (reqStmt != null) try { reqStmt.close(); } catch (SQLException ignored) {}
             DBConfig.closeConnection(conn);
         }
