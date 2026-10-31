@@ -176,19 +176,8 @@ public class CustomerDashboard extends JFrame {
         tableTitle.setBorder(new EmptyBorder(5, 0, 5, 0));
 
         String[] columns = {"Type", "Amount ($)", "Timestamp", "Description"};
-        tableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-
-        transactionTable = new JTable(tableModel);
-        transactionTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        transactionTable.setRowHeight(24);
-        transactionTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
-        transactionTable.getTableHeader().setBackground(new Color(230, 235, 240));
-        transactionTable.getTableHeader().setReorderingAllowed(false);
+        tableModel = UiUtils.readOnlyModel(columns);
+        transactionTable = UiUtils.createTable(tableModel);
 
         JScrollPane scrollPane = new JScrollPane(transactionTable);
         tablePanel.add(tableTitle, BorderLayout.NORTH);
@@ -220,13 +209,11 @@ public class CustomerDashboard extends JFrame {
         String input = JOptionPane.showInputDialog(this, "Enter amount to deposit ($):", "Deposit Funds", JOptionPane.PLAIN_MESSAGE);
         if (input == null || input.trim().isEmpty()) return;
 
-        try {
-            double amount = Double.parseDouble(input.trim());
-            if (!Double.isFinite(amount) || amount <= 0) {
-                JOptionPane.showMessageDialog(this, "Deposit amount must be a valid positive number.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+        Double parsedAmount = parsePositiveAmount(input, "Deposit amount");
+        if (parsedAmount == null) return;
+        double amount = parsedAmount;
 
+        try {
             boolean success = dao.deposit(customerAccount.getAccountNumber(), amount);
             if (success) {
                 JOptionPane.showMessageDialog(this, String.format("Successfully deposited $%,.2f into your account!", amount), "Deposit Success", JOptionPane.INFORMATION_MESSAGE);
@@ -234,8 +221,6 @@ public class CustomerDashboard extends JFrame {
             } else {
                 JOptionPane.showMessageDialog(this, "Deposit operation failed.", "Operation Failed", JOptionPane.ERROR_MESSAGE);
             }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Please enter a valid numeric amount.", "Format Error", JOptionPane.ERROR_MESSAGE);
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Database Error: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -247,18 +232,13 @@ public class CustomerDashboard extends JFrame {
         String input = JOptionPane.showInputDialog(this, "Enter amount to withdraw ($):", "Withdraw Cash", JOptionPane.PLAIN_MESSAGE);
         if (input == null || input.trim().isEmpty()) return;
 
+        Double parsedAmount = parsePositiveAmount(input, "Withdrawal amount");
+        if (parsedAmount == null) return;
+        double amount = parsedAmount;
+
+        if (!hasSufficientBalance(amount)) return;
+
         try {
-            double amount = Double.parseDouble(input.trim());
-            if (!Double.isFinite(amount) || amount <= 0) {
-                JOptionPane.showMessageDialog(this, "Withdrawal amount must be a valid positive number.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-
-            if (customerAccount.getBalance() < amount) {
-                JOptionPane.showMessageDialog(this, String.format("Insufficient balance! Current balance is $%,.2f.", customerAccount.getBalance()), "Insufficient Funds", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-
             boolean success = dao.withdraw(customerAccount.getAccountNumber(), amount);
             if (success) {
                 JOptionPane.showMessageDialog(this, String.format("Successfully withdrew $%,.2f from your account.", amount), "Withdrawal Success", JOptionPane.INFORMATION_MESSAGE);
@@ -266,8 +246,6 @@ public class CustomerDashboard extends JFrame {
             } else {
                 JOptionPane.showMessageDialog(this, "Withdrawal failed. Check balance or account status.", "Operation Failed", JOptionPane.ERROR_MESSAGE);
             }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Please enter a valid numeric amount.", "Format Error", JOptionPane.ERROR_MESSAGE);
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Database Error: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -296,30 +274,31 @@ public class CustomerDashboard extends JFrame {
             return;
         }
 
+        long targetAcc;
         try {
-            long targetAcc = Long.parseLong(targetAccStr);
-            double amount = Double.parseDouble(amountStr);
+            targetAcc = Long.parseLong(targetAccStr);
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid numeric Target Account Number.", "Format Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-            if (targetAcc <= 0) {
-                JOptionPane.showMessageDialog(this, "Target Account Number must be a positive number.", "Invalid Target", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+        if (targetAcc <= 0) {
+            JOptionPane.showMessageDialog(this, "Target Account Number must be a positive number.", "Invalid Target", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
-            if (targetAcc == customerAccount.getAccountNumber()) {
-                JOptionPane.showMessageDialog(this, "Cannot transfer funds to your own account number.", "Invalid Target", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+        if (targetAcc == customerAccount.getAccountNumber()) {
+            JOptionPane.showMessageDialog(this, "Cannot transfer funds to your own account number.", "Invalid Target", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
-            if (!Double.isFinite(amount) || amount <= 0) {
-                JOptionPane.showMessageDialog(this, "Transfer amount must be a valid positive number.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+        Double parsedAmount = parsePositiveAmount(amountStr, "Transfer amount");
+        if (parsedAmount == null) return;
+        double amount = parsedAmount;
 
-            if (customerAccount.getBalance() < amount) {
-                JOptionPane.showMessageDialog(this, String.format("Insufficient balance! Current balance is $%,.2f.", customerAccount.getBalance()), "Insufficient Funds", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+        if (!hasSufficientBalance(amount)) return;
 
+        try {
             boolean success = dao.transferFunds(customerAccount.getAccountNumber(), targetAcc, amount);
             if (success) {
                 JOptionPane.showMessageDialog(this, String.format("Successfully transferred $%,.2f to Account #%d!", amount, targetAcc), "Transfer Successful", JOptionPane.INFORMATION_MESSAGE);
@@ -327,8 +306,6 @@ public class CustomerDashboard extends JFrame {
             } else {
                 JOptionPane.showMessageDialog(this, "Transfer failed! Please check if target account number exists and is active.", "Transfer Failed", JOptionPane.ERROR_MESSAGE);
             }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Please enter valid numeric inputs for Target Account and Amount.", "Format Error", JOptionPane.ERROR_MESSAGE);
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Database Error during transfer: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -342,6 +319,28 @@ public class CustomerDashboard extends JFrame {
         }
         if (!"Active".equalsIgnoreCase(customerAccount.getStatus())) {
             JOptionPane.showMessageDialog(this, "This account is " + customerAccount.getStatus() + " and cannot be used for " + action + ".", "Account Not Active", JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+        return true;
+    }
+
+    private Double parsePositiveAmount(String input, String label) {
+        try {
+            double amount = Double.parseDouble(input.trim());
+            if (!Double.isFinite(amount) || amount <= 0) {
+                JOptionPane.showMessageDialog(this, label + " must be a valid positive number.", "Invalid Amount", JOptionPane.WARNING_MESSAGE);
+                return null;
+            }
+            return amount;
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid numeric amount.", "Format Error", JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+    }
+
+    private boolean hasSufficientBalance(double amount) {
+        if (customerAccount.getBalance() < amount) {
+            JOptionPane.showMessageDialog(this, String.format("Insufficient balance! Current balance is $%,.2f.", customerAccount.getBalance()), "Insufficient Funds", JOptionPane.WARNING_MESSAGE);
             return false;
         }
         return true;
@@ -500,18 +499,8 @@ public class CustomerDashboard extends JFrame {
         tableTitle.setBorder(new EmptyBorder(5, 0, 5, 0));
 
         String[] columns = {"Subject", "Status", "Admin Response", "Submitted"};
-        requestTableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        requestTable = new JTable(requestTableModel);
-        requestTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        requestTable.setRowHeight(24);
-        requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
-        requestTable.getTableHeader().setBackground(new Color(230, 235, 240));
-        requestTable.getTableHeader().setReorderingAllowed(false);
+        requestTableModel = UiUtils.readOnlyModel(columns);
+        requestTable = UiUtils.createTable(requestTableModel);
         requestTable.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
@@ -598,13 +587,13 @@ public class CustomerDashboard extends JFrame {
         StringBuilder html = new StringBuilder();
         html.append("<html><body style='font-family:Segoe UI; font-size:12px;'>");
         html.append("<b>Request ID:</b> ").append(request.requestId()).append("<br>");
-        html.append("<b>Status:</b> ").append(escapeHtml(request.status())).append("<br>");
-        html.append("<b>Submitted:</b> ").append(escapeHtml(String.valueOf(request.createdAt()))).append("<br><br>");
-        html.append("<b>Subject:</b><br>").append(escapeHtml(request.subject())).append("<br><br>");
-        html.append("<b>Message:</b><br>").append(escapeHtml(request.message()).replace("\n", "<br>"));
+        html.append("<b>Status:</b> ").append(UiUtils.escapeHtml(request.status())).append("<br>");
+        html.append("<b>Submitted:</b> ").append(UiUtils.escapeHtml(String.valueOf(request.createdAt()))).append("<br><br>");
+        html.append("<b>Subject:</b><br>").append(UiUtils.escapeHtml(request.subject())).append("<br><br>");
+        html.append("<b>Message:</b><br>").append(UiUtils.escapeHtml(request.message()).replace("\n", "<br>"));
         if (request.response() != null && !request.response().isEmpty()) {
             html.append("<br><br><b>Admin Response:</b><br>")
-                    .append(escapeHtml(request.response()).replace("\n", "<br>"));
+                    .append(UiUtils.escapeHtml(request.response()).replace("\n", "<br>"));
         }
         html.append("</body></html>");
 
@@ -621,13 +610,6 @@ public class CustomerDashboard extends JFrame {
         JOptionPane.showMessageDialog(this, scroll,
                 "Request #" + request.requestId() + " - " + request.subject(),
                 JOptionPane.PLAIN_MESSAGE);
-    }
-
-    private String escapeHtml(String value) {
-        if (value == null) return "";
-        return value.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
     }
 
     private void refreshAccountState() {

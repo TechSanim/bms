@@ -413,6 +413,34 @@ public class AdminDashboard extends JFrame {
         }
     }
 
+    private JPanel createSearchPanel(JComboBox<String> filterCombo, JTextField searchField, Runnable refreshAction) {
+        var searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        searchPanel.add(new JLabel("Filter by:"));
+
+        filterCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        searchPanel.add(filterCombo);
+
+        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        searchField.addActionListener(e -> refreshAction.run());
+        searchPanel.add(searchField);
+
+        var searchButton = new JButton("Search");
+        searchButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        searchButton.addActionListener(e -> refreshAction.run());
+        searchPanel.add(searchButton);
+
+        var clearButton = new JButton("Clear");
+        clearButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        clearButton.addActionListener(e -> {
+            searchField.setText("");
+            filterCombo.setSelectedIndex(0);
+            refreshAction.run();
+        });
+        searchPanel.add(clearButton);
+
+        return searchPanel;
+    }
+
     // ------------------------------------------------------------------
     // Customer Directory
     // ------------------------------------------------------------------
@@ -421,47 +449,13 @@ public class AdminDashboard extends JFrame {
         var panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        var searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
-        searchPanel.add(new JLabel("Filter by:"));
         customerFilterCombo = new JComboBox<>(new String[]{"All", "Name", "Account Number", "Recent Transaction"});
-        customerFilterCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        searchPanel.add(customerFilterCombo);
-
         customerSearchField = new JTextField(22);
-        customerSearchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        customerSearchField.addActionListener(e -> loadCustomerData());
-        searchPanel.add(customerSearchField);
-
-        var searchButton = new JButton("Search");
-        searchButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        searchButton.addActionListener(e -> loadCustomerData());
-        searchPanel.add(searchButton);
-
-        var clearButton = new JButton("Clear");
-        clearButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        clearButton.addActionListener(e -> {
-            customerSearchField.setText("");
-            customerFilterCombo.setSelectedIndex(0);
-            loadCustomerData();
-        });
-        searchPanel.add(clearButton);
-
-        panel.add(searchPanel, BorderLayout.NORTH);
+        panel.add(createSearchPanel(customerFilterCombo, customerSearchField, this::loadCustomerData), BorderLayout.NORTH);
 
         String[] columns = {"Cust ID", "User ID", "Name", "Email", "Phone", "Account #", "Type", "Balance ($)", "Status"};
-        customerTableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-
-        customerTable = new JTable(customerTableModel);
-        customerTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        customerTable.setRowHeight(24);
-        customerTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
-        customerTable.getTableHeader().setBackground(new Color(230, 235, 240));
-        customerTable.getTableHeader().setReorderingAllowed(false);
+        customerTableModel = UiUtils.readOnlyModel(columns);
+        customerTable = UiUtils.createTable(customerTableModel);
 
         var scrollPane = new JScrollPane(customerTable);
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -511,47 +505,13 @@ public class AdminDashboard extends JFrame {
         var panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        var searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
-        searchPanel.add(new JLabel("Filter by:"));
         auditFilterCombo = new JComboBox<>(new String[]{"All", "Account Number", "Type", "Description"});
-        auditFilterCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        searchPanel.add(auditFilterCombo);
-
         auditSearchField = new JTextField(22);
-        auditSearchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        auditSearchField.addActionListener(e -> loadAuditData());
-        searchPanel.add(auditSearchField);
-
-        var searchButton = new JButton("Search");
-        searchButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        searchButton.addActionListener(e -> loadAuditData());
-        searchPanel.add(searchButton);
-
-        var clearButton = new JButton("Clear");
-        clearButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        clearButton.addActionListener(e -> {
-            auditSearchField.setText("");
-            auditFilterCombo.setSelectedIndex(0);
-            loadAuditData();
-        });
-        searchPanel.add(clearButton);
-
-        panel.add(searchPanel, BorderLayout.NORTH);
+        panel.add(createSearchPanel(auditFilterCombo, auditSearchField, this::loadAuditData), BorderLayout.NORTH);
 
         String[] columns = {"Tx ID", "Account #", "Type", "Amount ($)", "Timestamp", "Description"};
-        auditTableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-
-        auditTable = new JTable(auditTableModel);
-        auditTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        auditTable.setRowHeight(24);
-        auditTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
-        auditTable.getTableHeader().setBackground(new Color(230, 235, 240));
-        auditTable.getTableHeader().setReorderingAllowed(false);
+        auditTableModel = UiUtils.readOnlyModel(columns);
+        auditTable = UiUtils.createTable(auditTableModel);
 
         var scrollPane = new JScrollPane(auditTable);
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -599,19 +559,8 @@ public class AdminDashboard extends JFrame {
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
         String[] columns = {"Admin ID", "Username", "Status", "Last Login"};
-        adminTableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-
-        adminTable = new JTable(adminTableModel);
-        adminTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        adminTable.setRowHeight(24);
-        adminTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
-        adminTable.getTableHeader().setBackground(new Color(230, 235, 240));
-        adminTable.getTableHeader().setReorderingAllowed(false);
+        adminTableModel = UiUtils.readOnlyModel(columns);
+        adminTable = UiUtils.createTable(adminTableModel);
 
         panel.add(new JScrollPane(adminTable), BorderLayout.CENTER);
 
@@ -771,19 +720,8 @@ public class AdminDashboard extends JFrame {
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
         String[] columns = {"Log ID", "Username", "Action", "Timestamp"};
-        adminActivityTableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-
-        adminActivityTable = new JTable(adminActivityTableModel);
-        adminActivityTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        adminActivityTable.setRowHeight(24);
-        adminActivityTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
-        adminActivityTable.getTableHeader().setBackground(new Color(230, 235, 240));
-        adminActivityTable.getTableHeader().setReorderingAllowed(false);
+        adminActivityTableModel = UiUtils.readOnlyModel(columns);
+        adminActivityTable = UiUtils.createTable(adminActivityTableModel);
 
         panel.add(new JScrollPane(adminActivityTable), BorderLayout.CENTER);
 
@@ -825,19 +763,8 @@ public class AdminDashboard extends JFrame {
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
         String[] columns = {"Req ID", "Customer", "Acct #", "Type", "Subject", "Message", "Status", "Response", "Submitted"};
-        requestTableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-
-        requestTable = new JTable(requestTableModel);
-        requestTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        requestTable.setRowHeight(24);
-        requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
-        requestTable.getTableHeader().setBackground(new Color(230, 235, 240));
-        requestTable.getTableHeader().setReorderingAllowed(false);
+        requestTableModel = UiUtils.readOnlyModel(columns);
+        requestTable = UiUtils.createTable(requestTableModel);
         requestTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         requestTable.getColumnModel().getColumn(5).setPreferredWidth(260);
         requestTable.getColumnModel().getColumn(7).setPreferredWidth(200);
@@ -908,16 +835,16 @@ public class AdminDashboard extends JFrame {
         StringBuilder html = new StringBuilder();
         html.append("<html><body style='font-family:Segoe UI; font-size:12px;'>");
         html.append("<b>Request ID:</b> ").append(requestId).append("<br>");
-        html.append("<b>Customer:</b> ").append(escapeHtml(customer)).append("<br>");
-        html.append("<b>Account #:</b> ").append(escapeHtml(String.valueOf(acctObj))).append("<br>");
-        html.append("<b>Type:</b> ").append(escapeHtml(type)).append("<br>");
-        html.append("<b>Status:</b> ").append(escapeHtml(status)).append("<br>");
-        html.append("<b>Submitted:</b> ").append(escapeHtml(submitted)).append("<br><br>");
-        html.append("<b>Subject:</b><br>").append(escapeHtml(subject)).append("<br><br>");
-        html.append("<b>Message:</b><br>").append(escapeHtml(message).replace("\n", "<br>"));
+        html.append("<b>Customer:</b> ").append(UiUtils.escapeHtml(customer)).append("<br>");
+        html.append("<b>Account #:</b> ").append(UiUtils.escapeHtml(String.valueOf(acctObj))).append("<br>");
+        html.append("<b>Type:</b> ").append(UiUtils.escapeHtml(type)).append("<br>");
+        html.append("<b>Status:</b> ").append(UiUtils.escapeHtml(status)).append("<br>");
+        html.append("<b>Submitted:</b> ").append(UiUtils.escapeHtml(submitted)).append("<br><br>");
+        html.append("<b>Subject:</b><br>").append(UiUtils.escapeHtml(subject)).append("<br><br>");
+        html.append("<b>Message:</b><br>").append(UiUtils.escapeHtml(message).replace("\n", "<br>"));
         if (response != null && !response.isEmpty() && !"null".equals(response)) {
             html.append("<br><br><b>Admin Response:</b><br>")
-                    .append(escapeHtml(response).replace("\n", "<br>"));
+                    .append(UiUtils.escapeHtml(response).replace("\n", "<br>"));
         }
         html.append("</body></html>");
 
@@ -1034,13 +961,6 @@ public class AdminDashboard extends JFrame {
         dialog.pack();
         dialog.setLocationRelativeTo(this);
         dialog.setVisible(true);
-    }
-
-    private String escapeHtml(String value) {
-        if (value == null) return "";
-        return value.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
     }
 
     private void approveClosure(long accountNumber, int requestId) {

@@ -226,14 +226,7 @@ public class DatabaseOperations {
             rs = stmt.executeQuery();
 
             if (rs.next()) {
-                var account = new Account();
-                account.setAccountNumber(rs.getLong("account_number"));
-                account.setCustomerId(rs.getInt("customer_id"));
-                account.setBalance(rs.getDouble("balance"));
-                account.setAccountType(rs.getString("account_type"));
-                account.setStatus(rs.getString("status"));
-                account.setOpenDate(rs.getDate("open_date"));
-                return account;
+                return mapAccount(rs);
             }
         } finally {
             DBConfig.closeResources(rs, stmt, conn);
@@ -262,19 +255,23 @@ public class DatabaseOperations {
             rs = stmt.executeQuery();
 
             if (rs.next()) {
-                var account = new Account();
-                account.setAccountNumber(rs.getLong("account_number"));
-                account.setCustomerId(rs.getInt("customer_id"));
-                account.setBalance(rs.getDouble("balance"));
-                account.setAccountType(rs.getString("account_type"));
-                account.setStatus(rs.getString("status"));
-                account.setOpenDate(rs.getDate("open_date"));
-                return account;
+                return mapAccount(rs);
             }
         } finally {
             DBConfig.closeResources(rs, stmt, conn);
         }
         return null;
+    }
+
+    private Account mapAccount(ResultSet rs) throws SQLException {
+        var account = new Account();
+        account.setAccountNumber(rs.getLong("account_number"));
+        account.setCustomerId(rs.getInt("customer_id"));
+        account.setBalance(rs.getDouble("balance"));
+        account.setAccountType(rs.getString("account_type"));
+        account.setStatus(rs.getString("status"));
+        account.setOpenDate(rs.getDate("open_date"));
+        return account;
     }
 
     /**
@@ -297,14 +294,9 @@ public class DatabaseOperations {
             SET balance = balance + ?
             WHERE account_number = ? AND status = 'Active'
             """;
-        var transSql = """
-            INSERT INTO transactions (account_number, type, amount, description)
-            VALUES (?, 'DEPOSIT', ?, 'Cash Deposit')
-            """;
 
         Connection conn = null;
         PreparedStatement updateStmt = null;
-        PreparedStatement transStmt = null;
 
         try {
             conn = dbConfig.getConnection();
@@ -320,10 +312,7 @@ public class DatabaseOperations {
                 return false;
             }
 
-            transStmt = conn.prepareStatement(transSql);
-            transStmt.setLong(1, accountNumber);
-            transStmt.setDouble(2, amount);
-            transStmt.executeUpdate();
+            insertTransaction(conn, accountNumber, "DEPOSIT", amount, "Cash Deposit");
 
             conn.commit();
             return true;
@@ -334,7 +323,6 @@ public class DatabaseOperations {
             throw e;
         } finally {
             if (updateStmt != null) try { updateStmt.close(); } catch (SQLException ignored) {}
-            if (transStmt != null) try { transStmt.close(); } catch (SQLException ignored) {}
             DBConfig.closeConnection(conn);
         }
     }
@@ -355,14 +343,9 @@ public class DatabaseOperations {
             SET balance = balance - ?
             WHERE account_number = ? AND balance >= ? AND status = 'Active'
             """;
-        var transSql = """
-            INSERT INTO transactions (account_number, type, amount, description)
-            VALUES (?, 'WITHDRAWAL', ?, 'Cash Withdrawal')
-            """;
 
         Connection conn = null;
         PreparedStatement updateStmt = null;
-        PreparedStatement transStmt = null;
 
         try {
             conn = dbConfig.getConnection();
@@ -379,10 +362,7 @@ public class DatabaseOperations {
                 return false;
             }
 
-            transStmt = conn.prepareStatement(transSql);
-            transStmt.setLong(1, accountNumber);
-            transStmt.setDouble(2, amount);
-            transStmt.executeUpdate();
+            insertTransaction(conn, accountNumber, "WITHDRAWAL", amount, "Cash Withdrawal");
 
             conn.commit();
             return true;
@@ -393,7 +373,6 @@ public class DatabaseOperations {
             throw e;
         } finally {
             if (updateStmt != null) try { updateStmt.close(); } catch (SQLException ignored) {}
-            if (transStmt != null) try { transStmt.close(); } catch (SQLException ignored) {}
             DBConfig.closeConnection(conn);
         }
     }
@@ -424,20 +403,10 @@ public class DatabaseOperations {
             SET balance = balance + ?
             WHERE account_number = ? AND status = 'Active'
             """;
-        var transOut = """
-            INSERT INTO transactions (account_number, type, amount, description)
-            VALUES (?, 'TRANSFER', ?, ?)
-            """;
-        var transIn = """
-            INSERT INTO transactions (account_number, type, amount, description)
-            VALUES (?, 'TRANSFER', ?, ?)
-            """;
 
         Connection conn = null;
         PreparedStatement deductStmt = null;
         PreparedStatement addStmt = null;
-        PreparedStatement outStmt = null;
-        PreparedStatement inStmt = null;
 
         try {
             conn = dbConfig.getConnection();
@@ -477,19 +446,10 @@ public class DatabaseOperations {
                 }
             }
 
-            // Insert transaction log for source account
-            outStmt = conn.prepareStatement(transOut);
-            outStmt.setLong(1, sourceAccount);
-            outStmt.setDouble(2, amount);
-            outStmt.setString(3, "Fund Transfer Sent to Acc #" + targetAccount);
-            outStmt.executeUpdate();
-
-            // Insert transaction log for target account
-            inStmt = conn.prepareStatement(transIn);
-            inStmt.setLong(1, targetAccount);
-            inStmt.setDouble(2, amount);
-            inStmt.setString(3, "Fund Transfer Received from Acc #" + sourceAccount);
-            inStmt.executeUpdate();
+            insertTransaction(conn, sourceAccount, "TRANSFER", amount,
+                    "Fund Transfer Sent to Acc #" + targetAccount);
+            insertTransaction(conn, targetAccount, "TRANSFER", amount,
+                    "Fund Transfer Received from Acc #" + sourceAccount);
 
             conn.commit();
             return true;
@@ -505,9 +465,22 @@ public class DatabaseOperations {
         } finally {
             if (deductStmt != null) try { deductStmt.close(); } catch (SQLException ignored) {}
             if (addStmt != null) try { addStmt.close(); } catch (SQLException ignored) {}
-            if (outStmt != null) try { outStmt.close(); } catch (SQLException ignored) {}
-            if (inStmt != null) try { inStmt.close(); } catch (SQLException ignored) {}
             DBConfig.closeConnection(conn);
+        }
+    }
+
+    private void insertTransaction(Connection conn, long accountNumber, String type,
+                                   double amount, String description) throws SQLException {
+        var sql = """
+            INSERT INTO transactions (account_number, type, amount, description)
+            VALUES (?, ?, ?, ?)
+            """;
+        try (var stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, accountNumber);
+            stmt.setString(2, type);
+            stmt.setDouble(3, amount);
+            stmt.setString(4, description);
+            stmt.executeUpdate();
         }
     }
 
@@ -534,14 +507,7 @@ public class DatabaseOperations {
             rs = stmt.executeQuery();
 
             while (rs.next()) {
-                var t = new Transaction();
-                t.setTransactionId(rs.getInt("transaction_id"));
-                t.setAccountNumber(rs.getLong("account_number"));
-                t.setType(rs.getString("type"));
-                t.setAmount(rs.getDouble("amount"));
-                t.setTimestamp(rs.getTimestamp("timestamp"));
-                t.setDescription(rs.getString("description"));
-                list.add(t);
+                list.add(mapTransaction(rs));
             }
         } finally {
             DBConfig.closeResources(rs, stmt, conn);
@@ -668,19 +634,23 @@ public class DatabaseOperations {
             rs = stmt.executeQuery();
 
             while (rs.next()) {
-                var t = new Transaction();
-                t.setTransactionId(rs.getInt("transaction_id"));
-                t.setAccountNumber(rs.getLong("account_number"));
-                t.setType(rs.getString("type"));
-                t.setAmount(rs.getDouble("amount"));
-                t.setTimestamp(rs.getTimestamp("timestamp"));
-                t.setDescription(rs.getString("description"));
-                list.add(t);
+                list.add(mapTransaction(rs));
             }
         } finally {
             DBConfig.closeResources(rs, stmt, conn);
         }
         return list;
+    }
+
+    private Transaction mapTransaction(ResultSet rs) throws SQLException {
+        var t = new Transaction();
+        t.setTransactionId(rs.getInt("transaction_id"));
+        t.setAccountNumber(rs.getLong("account_number"));
+        t.setType(rs.getString("type"));
+        t.setAmount(rs.getDouble("amount"));
+        t.setTimestamp(rs.getTimestamp("timestamp"));
+        t.setDescription(rs.getString("description"));
+        return t;
     }
 
     // ------------------------------------------------------------------
