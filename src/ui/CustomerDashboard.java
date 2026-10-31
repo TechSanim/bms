@@ -11,6 +11,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class CustomerDashboard extends JFrame {
@@ -32,6 +33,7 @@ public class CustomerDashboard extends JFrame {
     private JTextArea messageArea;
     private JTable requestTable;
     private DefaultTableModel requestTableModel;
+    private final List<CustomerRequestDTO> myRequests = new ArrayList<>();
 
     public CustomerDashboard(Customer customer) {
         this.customer = customer;
@@ -493,11 +495,11 @@ public class CustomerDashboard extends JFrame {
         JPanel tablePanel = new JPanel(new BorderLayout(5, 5));
         tablePanel.setOpaque(false);
 
-        JLabel tableTitle = new JLabel("My Requests & Replies");
+        JLabel tableTitle = new JLabel("Requests");
         tableTitle.setFont(new Font("Segoe UI", Font.BOLD, 15));
         tableTitle.setBorder(new EmptyBorder(5, 0, 5, 0));
 
-        String[] columns = {"Req ID", "Type", "Subject", "Status", "Admin Response", "Submitted"};
+        String[] columns = {"Subject", "Status", "Admin Response", "Submitted"};
         requestTableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -510,6 +512,18 @@ public class CustomerDashboard extends JFrame {
         requestTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 13));
         requestTable.getTableHeader().setBackground(new Color(230, 235, 240));
         requestTable.getTableHeader().setReorderingAllowed(false);
+        requestTable.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 1) {
+                    int row = requestTable.rowAtPoint(e.getPoint());
+                    if (row >= 0 && row < myRequests.size()) {
+                        requestTable.setRowSelectionInterval(row, row);
+                        showMyRequestDetails(myRequests.get(row));
+                    }
+                }
+            }
+        });
 
         tablePanel.add(tableTitle, BorderLayout.NORTH);
         tablePanel.add(new JScrollPane(requestTable), BorderLayout.CENTER);
@@ -562,12 +576,12 @@ public class CustomerDashboard extends JFrame {
     private void loadMyRequests() {
         if (requestTableModel == null) return;
         requestTableModel.setRowCount(0);
+        myRequests.clear();
         try {
             List<CustomerRequestDTO> list = dao.getCustomerRequests(customer.getCustomerId());
             for (CustomerRequestDTO r : list) {
+                myRequests.add(r);
                 Object[] row = {
-                        r.requestId(),
-                        r.type(),
                         r.subject(),
                         r.status(),
                         r.response() != null ? r.response() : "",
@@ -578,6 +592,42 @@ public class CustomerDashboard extends JFrame {
         } catch (SQLException e) {
             System.err.println("Error loading requests: " + e.getMessage());
         }
+    }
+
+    private void showMyRequestDetails(CustomerRequestDTO request) {
+        StringBuilder html = new StringBuilder();
+        html.append("<html><body style='font-family:Segoe UI; font-size:12px;'>");
+        html.append("<b>Request ID:</b> ").append(request.requestId()).append("<br>");
+        html.append("<b>Status:</b> ").append(escapeHtml(request.status())).append("<br>");
+        html.append("<b>Submitted:</b> ").append(escapeHtml(String.valueOf(request.createdAt()))).append("<br><br>");
+        html.append("<b>Subject:</b><br>").append(escapeHtml(request.subject())).append("<br><br>");
+        html.append("<b>Message:</b><br>").append(escapeHtml(request.message()).replace("\n", "<br>"));
+        if (request.response() != null && !request.response().isEmpty()) {
+            html.append("<br><br><b>Admin Response:</b><br>")
+                    .append(escapeHtml(request.response()).replace("\n", "<br>"));
+        }
+        html.append("</body></html>");
+
+        JTextPane detailsPane = new JTextPane();
+        detailsPane.setContentType("text/html");
+        detailsPane.setText(html.toString());
+        detailsPane.setEditable(false);
+        detailsPane.setCaretPosition(0);
+        detailsPane.setBackground(new Color(250, 250, 250));
+
+        JScrollPane scroll = new JScrollPane(detailsPane);
+        scroll.setPreferredSize(new Dimension(520, 360));
+
+        JOptionPane.showMessageDialog(this, scroll,
+                "Request #" + request.requestId() + " - " + request.subject(),
+                JOptionPane.PLAIN_MESSAGE);
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 
     private void refreshAccountState() {

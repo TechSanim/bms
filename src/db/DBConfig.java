@@ -107,12 +107,36 @@ public class DBConfig {
             stmt.executeUpdate("ALTER TABLE users MODIFY COLUMN password VARCHAR(255) NULL");
 
             ensureRoleConstraint(stmt);
+            migrateDefaultCredentials(stmt);
 
             stmt.executeUpdate("""
                 INSERT INTO users (username, password, role)
-                SELECT 'headadmin', 'headadmin123', 'HeadAdmin'
+                SELECT 'headadmin', 'HeadAdmin@123', 'HeadAdmin'
                 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'headadmin')
                 """);
+        }
+    }
+
+    /**
+     * Upgrades the original seed accounts to the current default credentials.
+     * Only rows that still have the original defaults are changed, so custom
+     * passwords/usernames are left untouched.
+     */
+    private void migrateDefaultCredentials(Statement stmt) throws SQLException {
+        stmt.executeUpdate("UPDATE users SET password = 'HeadAdmin@123' "
+                + "WHERE username = 'headadmin' AND password = 'headadmin123'");
+        stmt.executeUpdate("UPDATE users SET password = 'Admin@123' "
+                + "WHERE username = 'admin' AND password = 'admin123'");
+        stmt.executeUpdate("UPDATE users SET password = 'Jane@123' "
+                + "WHERE username = 'jane_smith' AND password = 'user123'");
+
+        boolean userExists = false;
+        try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users WHERE username = 'user'")) {
+            userExists = rs.next() && rs.getInt(1) > 0;
+        }
+        if (!userExists) {
+            stmt.executeUpdate("UPDATE users SET username = 'user', password = 'User@123' "
+                    + "WHERE username = 'san' AND password = 'user123'");
         }
     }
 
@@ -261,10 +285,10 @@ public class DBConfig {
             if (rs.next() && rs.getInt(1) == 0) {
                 stmt.executeUpdate("""
                     INSERT INTO users (user_id, username, password, role) VALUES
-                    (1, 'headadmin', 'headadmin123', 'HeadAdmin'),
-                    (2, 'admin', 'admin123', 'Admin'),
-                    (3, 'san', 'user123', 'Customer'),
-                    (4, 'jane_smith', 'user123', 'Customer')
+                    (1, 'headadmin', 'HeadAdmin@123', 'HeadAdmin'),
+                    (2, 'admin', 'Admin@123', 'Admin'),
+                    (3, 'user', 'User@123', 'Customer'),
+                    (4, 'jane_smith', 'Jane@123', 'Customer')
                     """);
 
                 stmt.executeUpdate("""

@@ -89,14 +89,14 @@ CREATE TABLE customer_requests (
 
 -- Seed Users
 INSERT INTO users (user_id, username, password, role) VALUES
-(1, 'headadmin', 'headadmin123', 'HeadAdmin'),
-(2, 'admin', 'admin123', 'Admin'),
-(3, 'san', 'user123', 'Customer'),
-(4, 'jane_smith', 'user123', 'Customer');
+(1, 'headadmin', 'HeadAdmin@123', 'HeadAdmin'),
+(2, 'admin', 'Admin@123', 'Admin'),
+(3, 'user', 'User@123', 'Customer'),
+(4, 'jane_smith', 'Jane@123', 'Customer');
 
 -- Seed Customers
 INSERT INTO customers (customer_id, user_id, name, email, phone, address) VALUES
-(101, 3, 'San', 'san@example.com', '+1-555-0192', '123 Main Street, New York, NY'),
+(101, 3, 'user', 'user@example.com', '+1-555-0192', '123 Main Street, New York, NY'),
 (102, 4, 'Jane Smith', 'jane.smith@example.com', '+1-555-0148', '456 Oak Avenue, Los Angeles, CA');
 
 -- Seed Accounts

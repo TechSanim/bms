@@ -905,27 +905,30 @@ public class AdminDashboard extends JFrame {
         boolean isClosure = "Account Closure".equals(type);
         boolean pending = "Pending".equals(status);
 
-        JTextArea area = new JTextArea();
-        area.setEditable(false);
-        area.setLineWrap(true);
-        area.setWrapStyleWord(true);
-        area.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        StringBuilder sb = new StringBuilder();
-        sb.append("Request ID:  ").append(requestId).append('\n');
-        sb.append("Customer:    ").append(customer).append('\n');
-        sb.append("Account #:   ").append(acctObj).append('\n');
-        sb.append("Type:        ").append(type).append('\n');
-        sb.append("Status:      ").append(status).append('\n');
-        sb.append("Submitted:   ").append(submitted).append("\n\n");
-        sb.append("Subject:\n").append(subject).append("\n\n");
-        sb.append("Message:\n").append(message).append('\n');
+        StringBuilder html = new StringBuilder();
+        html.append("<html><body style='font-family:Segoe UI; font-size:12px;'>");
+        html.append("<b>Request ID:</b> ").append(requestId).append("<br>");
+        html.append("<b>Customer:</b> ").append(escapeHtml(customer)).append("<br>");
+        html.append("<b>Account #:</b> ").append(escapeHtml(String.valueOf(acctObj))).append("<br>");
+        html.append("<b>Type:</b> ").append(escapeHtml(type)).append("<br>");
+        html.append("<b>Status:</b> ").append(escapeHtml(status)).append("<br>");
+        html.append("<b>Submitted:</b> ").append(escapeHtml(submitted)).append("<br><br>");
+        html.append("<b>Subject:</b><br>").append(escapeHtml(subject)).append("<br><br>");
+        html.append("<b>Message:</b><br>").append(escapeHtml(message).replace("\n", "<br>"));
         if (response != null && !response.isEmpty() && !"null".equals(response)) {
-            sb.append("\nAdmin Response:\n").append(response).append('\n');
+            html.append("<br><br><b>Admin Response:</b><br>")
+                    .append(escapeHtml(response).replace("\n", "<br>"));
         }
-        area.setText(sb.toString());
-        area.setCaretPosition(0);
+        html.append("</body></html>");
 
-        JScrollPane scroll = new JScrollPane(area);
+        JTextPane detailsPane = new JTextPane();
+        detailsPane.setContentType("text/html");
+        detailsPane.setText(html.toString());
+        detailsPane.setEditable(false);
+        detailsPane.setCaretPosition(0);
+        detailsPane.setBackground(new Color(250, 250, 250));
+
+        JScrollPane scroll = new JScrollPane(detailsPane);
         scroll.setPreferredSize(new Dimension(540, 380));
 
         if (!pending) {
@@ -933,28 +936,111 @@ public class AdminDashboard extends JFrame {
             return;
         }
 
-        Object[] options = isClosure
-                ? new Object[]{"Approve & Close Account", "Reject", "Close"}
-                : new Object[]{"Reply", "Reject", "Close"};
-
-        int choice = JOptionPane.showOptionDialog(this, scroll,
-                "Request #" + requestId + " - " + type,
-                JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE,
-                null, options, options[0]);
-
-        if (choice == 0) {
-            if (isClosure) {
+        if (isClosure) {
+            Object[] options = {"Approve & Close Account", "Reject", "Close"};
+            int choice = JOptionPane.showOptionDialog(this, scroll,
+                    "Request #" + requestId + " - " + type,
+                    JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE,
+                    null, options, options[0]);
+            if (choice == 0) {
                 if (acctObj instanceof Long) {
                     approveClosure((Long) acctObj, requestId);
                 } else {
                     JOptionPane.showMessageDialog(this, "This request has no linked account.", "Error", JOptionPane.ERROR_MESSAGE);
                 }
-            } else {
-                replyToRequest(requestId);
+            } else if (choice == 1) {
+                rejectRequest(requestId);
             }
-        } else if (choice == 1) {
-            rejectRequest(requestId);
+            return;
         }
+
+        showReplyDialog(requestId, type, scroll);
+    }
+
+    private void showReplyDialog(int requestId, String type, JScrollPane detailsScroll) {
+        JTextArea replyArea = new JTextArea(4, 40);
+        replyArea.setLineWrap(true);
+        replyArea.setWrapStyleWord(true);
+        replyArea.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+
+        JLabel replyLabel = new JLabel("Reply:");
+        replyLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
+
+        JPanel replyPanel = new JPanel(new BorderLayout(0, 4));
+        replyPanel.add(replyLabel, BorderLayout.NORTH);
+        replyPanel.add(new JScrollPane(replyArea), BorderLayout.CENTER);
+
+        JButton sendButton = new JButton("Send");
+        sendButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        sendButton.setEnabled(false);
+
+        JButton closeButton = new JButton("Close");
+        closeButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+
+        JDialog dialog = new JDialog(this, "Request #" + requestId + " - " + type, true);
+        sendButton.addActionListener(e -> {
+            String reply = replyArea.getText().trim();
+            if (reply.isEmpty()) return;
+            try {
+                if (dao.updateRequestStatus(requestId, "Resolved", reply, admin.getUsername())) {
+                    JOptionPane.showMessageDialog(dialog, "Reply sent.", "Resolved", JOptionPane.INFORMATION_MESSAGE);
+                    loadCustomerRequests();
+                    dialog.dispose();
+                } else {
+                    JOptionPane.showMessageDialog(dialog, "Could not update the request.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(dialog, "Database Error: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        closeButton.addActionListener(e -> dialog.dispose());
+
+        replyArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            private void updateSendState() {
+                sendButton.setEnabled(!replyArea.getText().trim().isEmpty());
+            }
+
+            @Override
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                updateSendState();
+            }
+
+            @Override
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                updateSendState();
+            }
+
+            @Override
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                updateSendState();
+            }
+        });
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
+        buttonPanel.add(sendButton);
+        buttonPanel.add(closeButton);
+
+        JPanel content = new JPanel(new BorderLayout(0, 8));
+        content.setBorder(new EmptyBorder(10, 10, 10, 10));
+        content.add(detailsScroll, BorderLayout.CENTER);
+        content.add(replyPanel, BorderLayout.SOUTH);
+
+        JPanel root = new JPanel(new BorderLayout(0, 8));
+        root.setBorder(new EmptyBorder(8, 8, 8, 8));
+        root.add(content, BorderLayout.CENTER);
+        root.add(buttonPanel, BorderLayout.SOUTH);
+
+        dialog.setContentPane(root);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 
     private void approveClosure(long accountNumber, int requestId) {
@@ -976,32 +1062,6 @@ public class AdminDashboard extends JFrame {
                 loadCustomerRequests();
             } else {
                 JOptionPane.showMessageDialog(this, "Could not close the account.", "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void replyToRequest(int requestId) {
-        JTextArea responseArea = new JTextArea(4, 30);
-        responseArea.setLineWrap(true);
-        responseArea.setWrapStyleWord(true);
-        int result = JOptionPane.showConfirmDialog(this, new JScrollPane(responseArea),
-                "Reply to customer:", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (result != JOptionPane.OK_OPTION) return;
-
-        String response = responseArea.getText().trim();
-        if (response.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please write a reply.", "Empty Reply", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        try {
-            if (dao.updateRequestStatus(requestId, "Resolved", response, admin.getUsername())) {
-                JOptionPane.showMessageDialog(this, "Reply sent.", "Resolved", JOptionPane.INFORMATION_MESSAGE);
-                loadCustomerRequests();
-            } else {
-                JOptionPane.showMessageDialog(this, "Could not update the request.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
