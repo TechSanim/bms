@@ -90,6 +90,28 @@ public class DatabaseOperations {
     }
 
     /**
+     * Returns the stored role for a valid username/password pair, or null if the
+     * credentials do not match any account. Used to explain role mismatches at login.
+     */
+    public String findRoleByCredentials(String username, String password) throws SQLException {
+        var sql = "SELECT role FROM users WHERE username = ? AND password = ? LIMIT 1";
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = dbConfig.getConnection();
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, username);
+            stmt.setString(2, password);
+            rs = stmt.executeQuery();
+            return rs.next() ? rs.getString("role") : null;
+        } finally {
+            DBConfig.closeResources(rs, stmt, conn);
+        }
+    }
+
+    /**
      * Atomically creates a User, Customer profile, and Account within a single transaction.
      */
     public boolean createCustomerWithAccount(Customer customer, Account account) throws SQLException {
@@ -447,9 +469,9 @@ public class DatabaseOperations {
             }
 
             insertTransaction(conn, sourceAccount, "TRANSFER", amount,
-                    "Fund Transfer Sent to Acc #" + targetAccount);
+                    "Fund Transfer Sent to Account " + targetAccount);
             insertTransaction(conn, targetAccount, "TRANSFER", amount,
-                    "Fund Transfer Received from Acc #" + sourceAccount);
+                    "Fund Transfer Received from Account " + sourceAccount);
 
             conn.commit();
             return true;

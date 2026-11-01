@@ -126,7 +126,7 @@ public class CustomerDashboard extends JFrame {
         String accStatus = (customerAccount != null) ? customerAccount.getStatus() : "N/A";
         double balance = (customerAccount != null) ? customerAccount.getBalance() : 0.0;
 
-        accountInfoLabel = new JLabel(String.format("Account #: %d  |  Type: %s  |  Status: %s", accNum, accType, accStatus));
+        accountInfoLabel = new JLabel(String.format("Account: %d  |  Type: %s  |  Status: %s", accNum, accType, accStatus));
         accountInfoLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         accountInfoLabel.setForeground(new Color(235, 245, 251));
 
@@ -134,7 +134,7 @@ public class CustomerDashboard extends JFrame {
         balanceTitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         balanceTitleLabel.setForeground(new Color(212, 230, 241));
 
-        balanceValueLabel = new JLabel(String.format("$%,.2f", balance));
+        balanceValueLabel = new JLabel(UiUtils.formatCurrency(balance));
         balanceValueLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
         balanceValueLabel.setForeground(Color.WHITE);
 
@@ -175,7 +175,7 @@ public class CustomerDashboard extends JFrame {
         tableTitle.setFont(new Font("Segoe UI", Font.BOLD, 15));
         tableTitle.setBorder(new EmptyBorder(5, 0, 5, 0));
 
-        String[] columns = {"Type", "Amount ($)", "Timestamp", "Description"};
+        String[] columns = {"Type", "Amount (\u20B9)", "Timestamp", "Description"};
         tableModel = UiUtils.readOnlyModel(columns);
         transactionTable = UiUtils.createTable(tableModel);
 
@@ -206,7 +206,7 @@ public class CustomerDashboard extends JFrame {
         if (!ensureActiveAccount("deposit")) return;
         if (blockIfPendingClosure("deposit")) return;
 
-        String input = JOptionPane.showInputDialog(this, "Enter amount to deposit ($):", "Deposit Funds", JOptionPane.PLAIN_MESSAGE);
+        String input = JOptionPane.showInputDialog(this, "Enter amount to deposit (\u20B9):", "Deposit Funds", JOptionPane.PLAIN_MESSAGE);
         if (input == null || input.trim().isEmpty()) return;
 
         Double parsedAmount = parsePositiveAmount(input, "Deposit amount");
@@ -216,7 +216,7 @@ public class CustomerDashboard extends JFrame {
         try {
             boolean success = dao.deposit(customerAccount.getAccountNumber(), amount);
             if (success) {
-                JOptionPane.showMessageDialog(this, String.format("Successfully deposited $%,.2f into your account!", amount), "Deposit Success", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Successfully deposited " + UiUtils.formatCurrency(amount) + " into your account!", "Deposit Success", JOptionPane.INFORMATION_MESSAGE);
                 refreshAccountState();
             } else {
                 JOptionPane.showMessageDialog(this, "Deposit operation failed.", "Operation Failed", JOptionPane.ERROR_MESSAGE);
@@ -229,7 +229,7 @@ public class CustomerDashboard extends JFrame {
     private void handleWithdraw() {
         if (!ensureActiveAccount("withdrawal")) return;
 
-        String input = JOptionPane.showInputDialog(this, "Enter amount to withdraw ($):", "Withdraw Cash", JOptionPane.PLAIN_MESSAGE);
+        String input = JOptionPane.showInputDialog(this, "Enter amount to withdraw (\u20B9):", "Withdraw Cash", JOptionPane.PLAIN_MESSAGE);
         if (input == null || input.trim().isEmpty()) return;
 
         Double parsedAmount = parsePositiveAmount(input, "Withdrawal amount");
@@ -241,7 +241,7 @@ public class CustomerDashboard extends JFrame {
         try {
             boolean success = dao.withdraw(customerAccount.getAccountNumber(), amount);
             if (success) {
-                JOptionPane.showMessageDialog(this, String.format("Successfully withdrew $%,.2f from your account.", amount), "Withdrawal Success", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Successfully withdrew " + UiUtils.formatCurrency(amount) + " from your account.", "Withdrawal Success", JOptionPane.INFORMATION_MESSAGE);
                 refreshAccountState();
             } else {
                 JOptionPane.showMessageDialog(this, "Withdrawal failed. Check balance or account status.", "Operation Failed", JOptionPane.ERROR_MESSAGE);
@@ -260,7 +260,7 @@ public class CustomerDashboard extends JFrame {
 
         panel.add(new JLabel("Target Account Number:"));
         panel.add(targetAccField);
-        panel.add(new JLabel("Transfer Amount ($):"));
+        panel.add(new JLabel("Transfer Amount (\u20B9):"));
         panel.add(amountField);
 
         int result = JOptionPane.showConfirmDialog(this, panel, "Fund Transfer", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
@@ -301,7 +301,7 @@ public class CustomerDashboard extends JFrame {
         try {
             boolean success = dao.transferFunds(customerAccount.getAccountNumber(), targetAcc, amount);
             if (success) {
-                JOptionPane.showMessageDialog(this, String.format("Successfully transferred $%,.2f to Account #%d!", amount, targetAcc), "Transfer Successful", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Successfully transferred " + UiUtils.formatCurrency(amount) + " to Account " + targetAcc + "!", "Transfer Successful", JOptionPane.INFORMATION_MESSAGE);
                 refreshAccountState();
             } else {
                 JOptionPane.showMessageDialog(this, "Transfer failed! Please check if target account number exists and is active.", "Transfer Failed", JOptionPane.ERROR_MESSAGE);
@@ -340,7 +340,7 @@ public class CustomerDashboard extends JFrame {
 
     private boolean hasSufficientBalance(double amount) {
         if (customerAccount.getBalance() < amount) {
-            JOptionPane.showMessageDialog(this, String.format("Insufficient balance! Current balance is $%,.2f.", customerAccount.getBalance()), "Insufficient Funds", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Insufficient balance! Current balance is " + UiUtils.formatCurrency(customerAccount.getBalance()) + ".", "Insufficient Funds", JOptionPane.WARNING_MESSAGE);
             return false;
         }
         return true;
@@ -390,7 +390,8 @@ public class CustomerDashboard extends JFrame {
         double balance = customerAccount.getBalance();
         if (balance != 0.0) {
             JOptionPane.showMessageDialog(this,
-                    String.format("Your account still holds a balance of $%,.2f.%n%nPlease withdraw the full balance before closing your account.", balance),
+                    "Your account still holds a balance of " + UiUtils.formatCurrency(balance)
+                            + ".\n\nPlease withdraw the full balance before closing your account.",
                     "Cannot Close Account", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -615,8 +616,8 @@ public class CustomerDashboard extends JFrame {
     private void refreshAccountState() {
         loadCustomerAccount();
         if (customerAccount != null) {
-            balanceValueLabel.setText(String.format("$%,.2f", customerAccount.getBalance()));
-            accountInfoLabel.setText(String.format("Account #: %d  |  Type: %s  |  Status: %s",
+            balanceValueLabel.setText(UiUtils.formatCurrency(customerAccount.getBalance()));
+            accountInfoLabel.setText(String.format("Account: %d  |  Type: %s  |  Status: %s",
                     customerAccount.getAccountNumber(),
                     customerAccount.getAccountType(),
                     customerAccount.getStatus()));

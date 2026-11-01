@@ -164,7 +164,15 @@ public class LoginFrame extends JFrame {
                     new CustomerDashboard((Customer) user).setVisible(true);
                 }
             } else {
-                JOptionPane.showMessageDialog(this, "Invalid credentials or role mismatch. Please try again.", "Authentication Failed", JOptionPane.ERROR_MESSAGE);
+                String actualRole = dao.findRoleByCredentials(username, password);
+                if (actualRole != null && !actualRole.equalsIgnoreCase(role)) {
+                    JOptionPane.showMessageDialog(this,
+                            "These credentials belong to a " + actualRole + " account.\n"
+                                    + "Please select the \"" + actualRole + "\" role and try again.",
+                            "Role Mismatch", JOptionPane.WARNING_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Invalid username or password. Please try again.", "Authentication Failed", JOptionPane.ERROR_MESSAGE);
+                }
             }
         } catch (SQLException ex) {
             JOptionPane.showMessageDialog(this,

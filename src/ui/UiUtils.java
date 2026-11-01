@@ -28,6 +28,10 @@ final class UiUtils {
         return table;
     }
 
+    static String formatCurrency(double amount) {
+        return String.format("\u20B9%,.2f", amount);
+    }
+
     static String escapeHtml(String value) {
         if (value == null) return "";
         return value.replace("&", "&amp;")

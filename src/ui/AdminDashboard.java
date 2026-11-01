@@ -250,7 +250,7 @@ public class AdminDashboard extends JFrame {
         formPanel.add(accountNumberField, gbc);
 
         gbc.gridx = 2;
-        formPanel.add(new JLabel("Initial Deposit ($):"), gbc);
+        formPanel.add(new JLabel("Initial Deposit (\u20B9):"), gbc);
         gbc.gridx = 3;
         initialDepositField = new JTextField("1000.00", 15);
         initialDepositField.setFont(fieldFont);
@@ -301,7 +301,7 @@ public class AdminDashboard extends JFrame {
 
         if (username.isEmpty() || password.isEmpty() || name.isEmpty() || email.isEmpty() || phone.isEmpty()
                 || address.isEmpty() || accNumStr.isEmpty() || depositStr.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please fill in all required fields (Username, Password, Name, Email, Phone, Address, Account #, Deposit).", "Validation Error", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Please fill in all required fields (Username, Password, Name, Email, Phone, Address, Account, Deposit).", "Validation Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -346,7 +346,7 @@ public class AdminDashboard extends JFrame {
             }
             initialDeposit = Double.parseDouble(depositStr);
             if (!Double.isFinite(initialDeposit) || initialDeposit < 1000) {
-                JOptionPane.showMessageDialog(this, "Initial deposit must be at least $1000.00.", "Validation Error", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Initial deposit must be at least " + UiUtils.formatCurrency(1000) + ".", "Validation Error", JOptionPane.WARNING_MESSAGE);
                 return;
             }
         } catch (NumberFormatException e) {
@@ -453,7 +453,7 @@ public class AdminDashboard extends JFrame {
         customerSearchField = new JTextField(22);
         panel.add(createSearchPanel(customerFilterCombo, customerSearchField, this::loadCustomerData), BorderLayout.NORTH);
 
-        String[] columns = {"Cust ID", "User ID", "Name", "Email", "Phone", "Account #", "Type", "Balance ($)", "Status"};
+        String[] columns = {"Cust ID", "User ID", "Name", "Email", "Phone", "Account", "Type", "Balance (\u20B9)", "Status"};
         customerTableModel = UiUtils.readOnlyModel(columns);
         customerTable = UiUtils.createTable(customerTableModel);
 
@@ -509,7 +509,7 @@ public class AdminDashboard extends JFrame {
         auditSearchField = new JTextField(22);
         panel.add(createSearchPanel(auditFilterCombo, auditSearchField, this::loadAuditData), BorderLayout.NORTH);
 
-        String[] columns = {"Tx ID", "Account #", "Type", "Amount ($)", "Timestamp", "Description"};
+        String[] columns = {"Tx ID", "Account", "Type", "Amount (\u20B9)", "Timestamp", "Description"};
         auditTableModel = UiUtils.readOnlyModel(columns);
         auditTable = UiUtils.createTable(auditTableModel);
 
@@ -762,7 +762,7 @@ public class AdminDashboard extends JFrame {
         var panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-        String[] columns = {"Req ID", "Customer", "Acct #", "Type", "Subject", "Message", "Status", "Response", "Submitted"};
+        String[] columns = {"Req ID", "Customer", "Account", "Type", "Subject", "Message", "Status", "Response", "Submitted"};
         requestTableModel = UiUtils.readOnlyModel(columns);
         requestTable = UiUtils.createTable(requestTableModel);
         requestTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
@@ -836,7 +836,7 @@ public class AdminDashboard extends JFrame {
         html.append("<html><body style='font-family:Segoe UI; font-size:12px;'>");
         html.append("<b>Request ID:</b> ").append(requestId).append("<br>");
         html.append("<b>Customer:</b> ").append(UiUtils.escapeHtml(customer)).append("<br>");
-        html.append("<b>Account #:</b> ").append(UiUtils.escapeHtml(String.valueOf(acctObj))).append("<br>");
+        html.append("<b>Account:</b> ").append(UiUtils.escapeHtml(String.valueOf(acctObj))).append("<br>");
         html.append("<b>Type:</b> ").append(UiUtils.escapeHtml(type)).append("<br>");
         html.append("<b>Status:</b> ").append(UiUtils.escapeHtml(status)).append("<br>");
         html.append("<b>Submitted:</b> ").append(UiUtils.escapeHtml(submitted)).append("<br><br>");
@@ -966,7 +966,7 @@ public class AdminDashboard extends JFrame {
     private void approveClosure(long accountNumber, int requestId) {
         var responseField = new JTextField("Account closure approved.", 30);
         var dialogPanel = new JPanel(new GridLayout(2, 1, 6, 6));
-        dialogPanel.add(new JLabel("Close account #" + accountNumber + "? Optional note to customer:"));
+        dialogPanel.add(new JLabel("Close account " + accountNumber + "? Optional note to customer:"));
         dialogPanel.add(responseField);
 
         int confirm = JOptionPane.showConfirmDialog(this, dialogPanel,
@@ -978,7 +978,7 @@ public class AdminDashboard extends JFrame {
 
         try {
             if (dao.approveAccountClosure(requestId, accountNumber, response, admin.getUsername())) {
-                JOptionPane.showMessageDialog(this, "Account #" + accountNumber + " has been closed and the customer can no longer log in.", "Account Closed", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Account " + accountNumber + " has been closed and the customer can no longer log in.", "Account Closed", JOptionPane.INFORMATION_MESSAGE);
                 loadCustomerRequests();
             } else {
                 JOptionPane.showMessageDialog(this, "Could not close the account.", "Error", JOptionPane.ERROR_MESSAGE);
