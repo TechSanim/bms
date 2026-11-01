@@ -785,9 +785,11 @@ public class DatabaseOperations {
     public List<AdminActivityDTO> getAdminActivityLog() throws SQLException {
         var list = new ArrayList<AdminActivityDTO>();
         var sql = """
-            SELECT log_id, username, action, timestamp
-            FROM admin_activity_log
-            ORDER BY timestamp DESC
+            SELECT l.log_id, l.username, l.action, l.timestamp
+            FROM admin_activity_log l
+            JOIN users u ON l.user_id = u.user_id
+            WHERE NOT (u.role = 'HeadAdmin' AND l.action IN ('LOGIN', 'LOGOUT'))
+            ORDER BY l.timestamp DESC
             """;
         Connection conn = null;
         PreparedStatement stmt = null;

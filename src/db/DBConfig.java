@@ -287,26 +287,22 @@ public class DBConfig {
                     INSERT INTO users (user_id, username, password, role) VALUES
                     (1, 'headadmin', 'HeadAdmin@123', 'HeadAdmin'),
                     (2, 'admin', 'Admin@123', 'Admin'),
-                    (3, 'user', 'User@123', 'Customer'),
-                    (4, 'jane_smith', 'Jane@123', 'Customer')
+                    (3, 'user', 'User@123', 'Customer')
                     """);
 
                 stmt.executeUpdate("""
                     INSERT INTO customers (customer_id, user_id, name, email, phone, address) VALUES
-                    (101, 3, 'San', 'san@example.com', '+1-555-0192', '123 Main Street, New York, NY'),
-                    (102, 4, 'Jane Smith', 'jane.smith@example.com', '+1-555-0148', '456 Oak Avenue, Los Angeles, CA')
+                    (101, 3, 'user', 'user@example.com', '+1-555-0192', '123 Main Street, New York, NY')
                     """);
 
                 stmt.executeUpdate("""
                     INSERT INTO accounts (account_number, customer_id, balance, account_type, status, open_date) VALUES
-                    (10001, 101, 5000.00, 'Savings', 'Active', '2025-01-15'),
-                    (10002, 102, 2500.50, 'Current', 'Active', '2025-02-01')
+                    (10001, 101, 5000.00, 'Savings', 'Active', '2025-01-15')
                     """);
 
                 stmt.executeUpdate("""
                     INSERT INTO transactions (account_number, type, amount, description) VALUES
-                    (10001, 'DEPOSIT', 5000.00, 'Initial Account Opening Deposit'),
-                    (10002, 'DEPOSIT', 2500.50, 'Initial Account Opening Deposit')
+                    (10001, 'DEPOSIT', 5000.00, 'Initial Account Opening Deposit')
                     """);
             }
         }

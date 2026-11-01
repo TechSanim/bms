@@ -57,7 +57,6 @@ To set it up manually instead, run `schema.sql` once in MySQL.
 |----------|--------------|-----------|
 | Admin    | `admin`      | `Admin@123`|
 | Customer | `user`       | `User@123` |
-| Customer | `jane_smith` | `Jane@123` |
 
 ## Project structure
 

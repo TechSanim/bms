@@ -19,6 +19,8 @@ import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DocumentFilter;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -84,6 +86,12 @@ public class AdminDashboard extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(980, 680);
         setLocationRelativeTo(null);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                dao.recordLogout(admin.getUserId(), admin.getUsername());
+            }
+        });
 
         var mainPanel = new JPanel(new BorderLayout());
 
@@ -803,7 +811,7 @@ public class AdminDashboard extends JFrame {
                 Object[] row = {
                         r.requestId(),
                         r.customerName(),
-                        r.accountNumber() != null ? r.accountNumber() : "—",
+                        r.accountNumber() != null ? r.accountNumber() : "N/A",
                         r.type(),
                         r.subject(),
                         r.message(),
